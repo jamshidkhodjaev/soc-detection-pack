@@ -1,3 +1,4 @@
 sigma-cli
 pysigma-backend-splunk
 PyYAML
+pysigma-pipeline-sysmon

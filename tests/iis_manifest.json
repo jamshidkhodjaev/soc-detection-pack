@@ -12,6 +12,24 @@
       "event_id": "syn-benign-001",
       "expected_match": false,
       "reason": "Same shell and command, but an interactive Explorer parent."
+    },
+    {
+      "fixture": "fixtures/iis_positive_powershell.jsonl",
+      "event_id": "syn-iis-002",
+      "expected_match": true,
+      "reason": "IIS worker directly creates PowerShell, another shell covered by the rule."
+    },
+    {
+      "fixture": "fixtures/iis_benign_non_shell.jsonl",
+      "event_id": "syn-benign-002",
+      "expected_match": false,
+      "reason": "IIS is the parent, but the child is not one of the shells covered by this rule."
+    },
+    {
+      "fixture": "fixtures/iis_incomplete_missing_parent.jsonl",
+      "event_id": "syn-incomplete-001",
+      "expected_match": false,
+      "reason": "ParentImage is missing, so the required IIS parent relationship cannot be established."
     }
   ]
 }

@@ -1,0 +1,1 @@
+{"synthetic": true, "product": "windows", "category": "process_creation", "EventID": 1, "timestamp_utc": "2026-10-25T12:03:00Z", "host": "IIS-LAB01", "event_id": "syn-benign-002", "Image": "C:\\Windows\\System32\\notepad.exe", "ParentImage": "C:\\Windows\\System32\\inetsrv\\w3wp.exe", "CommandLine": "notepad.exe", "User": "IIS APPPOOL\\PortfolioPool"}

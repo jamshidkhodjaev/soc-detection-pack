@@ -1,79 +1,245 @@
 # Telemetry contract — IIS worker spawning a shell
 
 ## Hypothesis
-If a Windows process-creation event records w3wp.exe as the direct parent
-of cmd.exe, powershell.exe, or pwsh.exe, flag it for investigation.
-An attacker executing commands through a compromised IIS application or web shell
-may produce this relationship. Legitimate applications can also launch shells;
-a match is not proof of compromise or a particular CVE.
+
+If a Windows process-creation event records `w3wp.exe` as the direct parent of
+`cmd.exe`, `powershell.exe`, or `pwsh.exe`, flag it for investigation.
+
+An attacker executing commands through a compromised IIS application or web
+shell may produce this relationship. Legitimate applications can also launch
+shells; a match is not proof of compromise or a particular CVE.
+
+Both parent and child predicates must match. `CommandLine` and `User` provide
+investigation context; they are not detection predicates.
 
 ## Source and normalization
-One logsource: product=windows, category=process_creation.
-The intended collection model is Sysmon Event ID 1 (process creation).
-For this milestone, all records are fabricated; no Windows collection is running.
-One UTF-8 JSON object per physical line. Each JSONL file contains one record.
-Backslashes in JSON strings are escaped: C:\\Windows becomes C:\Windows after parsing.
-No case conversion, basename extraction or slash rewriting happens during parsing.
-Image and ParentImage represent full Windows paths, not command lines.
+
+One Sigma logsource:
+
+```yaml
+logsource:
+    category: process_creation
+    product: windows
+```
+
+The intended collection model is Sysmon Event ID 1: process creation.
+
+All current fixtures are synthetic. Live Windows collection is outside the
+current implementation.
+
+Each fixture contains one UTF-8 JSON object on one physical line.
+JSON escapes backslashes: `C:\\Windows` becomes `C:\Windows` after parsing.
+
+Parsing performs no case conversion, basename extraction, or slash rewriting.
+Case-insensitive comparison occurs during matching.
+
+`Image` and `ParentImage` represent full Windows executable paths, not command
+lines. The evaluator checks string suffixes; it does not validate that these
+strings are well-formed Windows paths.
 
 | Field | Type | Requirement and meaning |
 | --- | --- | --- |
-| synthetic | boolean | Required true; explicit fabricated-data label |
-| event_id | string | Required unique fixture record ID; NOT the Windows event number |
-| timestamp_utc | string | Required UTC timestamp ending Z; ISO 8601 |
-| host | string | Required source computer name |
-| product | string | Required windows; local logsource routing metadata |
-| category | string | Required process_creation; local logsource routing metadata |
-| EventID | integer | Required 1; numeric Sysmon process-creation event type |
-| Image | string | Detection field: newly created child executable path |
-| ParentImage | string | Detection field: direct parent executable path |
-| CommandLine | string | Required context for complete fixtures; not a predicate |
-| User | string | Required context for complete fixtures; child process security principal |
+| `synthetic` | boolean | Required `true`; explicitly labels fabricated data |
+| `event_id` | string | Required fixture identifier matching the manifest; distinct from the Windows event number |
+| `timestamp_utc` | string | Required parseable ISO 8601 timestamp ending in `Z` |
+| `host` | string | Required nonempty source computer name |
+| `product` | string | Required routing field; `windows` is in scope |
+| `category` | string | Required routing field; `process_creation` is in scope |
+| `EventID` | integer | Required routing field; integer `1` is in scope |
+| `Image` | string | Child executable path; referenced detection field |
+| `ParentImage` | string | Direct parent executable path; referenced detection field |
+| `CommandLine` | string | Required nonempty context; not a detection predicate |
+| `User` | string | Required nonempty child-process security principal; not a detection predicate |
 
-For a later real normalizer: Sysmon UtcTime -> timestamp_utc,
-Computer -> host, Image/ParentImage/CommandLine/User retain their meanings.
-Generate event_id from a stable record identifier. Provider/channel must establish
-that EventID 1 is Sysmon, since event numbers alone are not globally unique.
-These fixtures are explicitly scoped to Sysmon by this contract.
+Complete fixtures supply both detection fields. Incomplete fixtures may
+deliberately omit a referenced detection field to test missing-field behavior.
+
+The current incomplete fixture omits `ParentImage` while retaining routing
+metadata and required context.
+
+For a future real-event normalizer:
+
+- Map Sysmon `UtcTime` to `timestamp_utc`.
+- Map the source computer identity to `host`.
+- Preserve the meanings of `Image`, `ParentImage`, `CommandLine`, and `User`.
+- Derive `event_id` from a stable record identifier.
+- Establish the Sysmon provider/channel before treating Event ID 1 as
+  process creation.
+
+Event numbers alone are not globally unique. The current synthetic fixtures
+are scoped to Sysmon by this contract; the evaluator does not independently
+verify a provider/channel field.
 
 ## Local evaluator contract
-The evaluator loads the actual rule YAML, rather than hard-coding IIS predicates.
-Allowed detection: one nonempty mapping named selection and condition: selection.
-Allowed field syntax: FIELD|endswith with a nonempty string or list of strings.
-Mapping entries use AND. Values in a list use OR. String comparison is
-case-insensitive (Python casefold; these fixtures use ASCII paths).
-No wildcards (* or ?), regex, escapes, other modifiers, other condition syntax,
-correlation, filters or custom taxonomy are supported; unsupported input errors out.
-The literal backslash preceding a filename is a path-component boundary.
-Missing/null referenced fields evaluate false. Non-string present fields error out.
-Missing routing metadata errors out; wrong product/category or EventID is out of
-scope and evaluates false. No missing-field test is claimed for this milestone.
-Invalid JSON and empty fixtures fail. The manifest stores expectations separately
-from the event, so expected outcomes cannot influence the detection.
+
+The evaluator loads the actual Sigma YAML rather than hard-coding IIS
+predicates.
+
+Supported detection syntax:
+
+- One nonempty mapping named `selection`.
+- `condition: selection`.
+- `FIELD|endswith` with a nonempty literal string or nonempty list of such strings.
+- AND between mapping entries.
+- OR between values in a list.
+- Case-insensitive comparison using Python `casefold`.
+
+The current fixtures use ASCII Windows paths. A literal backslash before the
+executable name provides a path-component boundary in the suffix comparison.
+
+Wildcards (`*` and `?`), regular expressions, other modifiers, other condition
+expressions, correlation, filters, and custom taxonomy are unsupported.
+Unsupported syntax causes an error.
+
+Backslashes in suffixes are literal characters; the evaluator does not
+interpret Sigma wildcard escape syntax.
+
+### Missing fields and invalid inputs
+
+- Missing or null referenced detection fields evaluate false.
+- Present detection fields with non-string values cause an error.
+- Missing routing metadata causes an error.
+- `EventID` must be an integer.
+- Different product, category, or integer event type values are out of scope
+  and evaluate false.
+- Invalid JSON, empty fixtures, or fixtures with multiple physical records
+  cause an error.
+- Required context must remain present, including in the current incomplete case.
+- The evaluator's command-line YAML loader rejects duplicate mapping keys.
+
+The manifest stores expected outcomes separately from events. Expected results
+are used to assess matching results; they are not detection inputs.
+
+Exit codes:
+
+| Code | Meaning |
+| --- | --- |
+| `0` | All fixture expectations passed |
+| `1` | At least one fixture expectation failed |
+| `2` | Invalid input, unsupported syntax, or another execution error |
+
+Run:
+
+```bash
+python scripts/evaluate.py tests/iis_manifest.json
+```
+
+## Current fixture coverage
+
+| Fixture ID | File | Scenario | Expected match |
+| --- | --- | --- | --- |
+| `syn-iis-001` | `fixtures/iis_positive.jsonl` | IIS worker spawning CMD | `true` |
+| `syn-benign-001` | `fixtures/iis_benign.jsonl` | Explorer spawning CMD | `false` |
+| `syn-iis-002` | `fixtures/iis_positive_powershell.jsonl` | IIS worker spawning PowerShell | `true` |
+| `syn-benign-002` | `fixtures/iis_benign_non_shell.jsonl` | IIS worker spawning Notepad | `false` |
+| `syn-incomplete-001` | `fixtures/iis_incomplete_missing_parent.jsonl` | CMD event missing `ParentImage` | `false` |
+
+All five fixture expectations passed during local validation on 26 October 2026.
+
+The Explorer case challenges the parent predicate. It uses the same shell and
+command as the first positive case.
+
+The Notepad case challenges the child predicate. It is outside this rule's
+shell list, even though its parent is IIS. This synthetic boundary case does
+not establish that IIS spawning Notepad is legitimate in a real environment.
+
+The incomplete case confirms that a missing `ParentImage` produces a non-match
+without a crash. A non-match caused by missing telemetry does not establish
+that an event is safe.
+
+The rule includes `pwsh.exe`, but the current fixtures do not include a dedicated
+positive case for that executable.
+
+## Mutation-check contract
+
+Run:
+
+```bash
+python scripts/mutation_check.py
+```
+
+The script first requires the original rule to pass all fixture expectations.
+It then creates separate in-memory copies and removes one predicate from each.
+
+| Mutation | Expected test response |
+| --- | --- |
+| Remove `ParentImage|endswith` | The Explorer-to-CMD benign expectation fails |
+| Remove `Image|endswith` | The IIS-to-Notepad benign expectation fails |
+
+Other affected fixtures may also fail.
+
+A mutation is detected when fixture evaluation returns an expectation failure.
+Execution errors do not count as detected mutations.
+
+Both predicate-removal mutations were detected during local validation.
+The original YAML file is not modified.
+
+These checks demonstrate that the fixture set catches two specific ways of
+weakening the rule. They do not establish complete coverage of possible defects.
 
 ## Splunk conversion contract
-Use the Splunk backend and the predefined sysmon pipeline. Sysmon field names
-Image and ParentImage are retained; the pipeline scopes process creation to
-EventID=1. This is raw Sysmon SPL, not Splunk CIM/tstats.
-The normalization-only fields event_id, synthetic, product and category are not
-assumed to be native Sysmon fields and are not rule predicates.
-No index name is invented. A real deployment must supply the correct data scope,
-provider/channel, field extraction and access controls and execute the SPL.
-Conversion is not fixture evaluation; the local evaluator does not execute SPL.
 
-## Boundaries and triage
-Positive: w3wp.exe -> cmd.exe /c whoami under an application-pool identity.
-Benign boundary: explorer.exe -> the exact same child and command.
-This challenges the parent predicate. Removing it should make that benign case fail.
-An approved IIS application invoking cmd.exe still matches: document and investigate
-that false positive before considering a narrowly scoped exception.
-Renamed executables, indirect descendants, in-process execution, absent parent
-telemetry and other shell names are outside this initial rule's coverage.
-Review process ancestry, full command line, account, IIS request logs and approved
-application behavior before concluding that exploitation occurred.
+Use the Splunk backend and predefined `sysmon` pipeline:
+
+```bash
+sigma convert -t splunk -p sysmon -f default -o converted/iis_worker_spawning_shell.spl rules/iis_worker_spawning_shell.yml
+```
+
+Sysmon field names `Image` and `ParentImage` are retained. The pipeline adds
+`EventID=1` for process creation.
+
+The generated query uses raw Sysmon fields rather than Splunk CIM/tstats.
+The rule's `fields` section supplies displayed columns through a `table` clause;
+it does not add matching conditions.
+
+The normalization-only fields `event_id`, `synthetic`, `product`, and `category`
+are not assumed to be native Sysmon fields and are not detection predicates.
+
+No index name is assumed. A real deployment must establish the correct data
+scope, provider/channel, field extraction, and access controls, then test
+the query against ingested events.
+
+Conversion is separate from fixture evaluation. The local evaluator does not
+execute SPL, and the generated query has not been run in Splunk.
+
+## Detection boundaries and triage
+
+Approved IIS application behavior can satisfy the rule. Investigate such
+matches before considering a narrowly scoped exception.
+
+Coverage limitations include:
+
+- Renamed executables.
+- Indirect descendants rather than direct child processes.
+- In-process execution without a matching child process.
+- Shell names outside the rule's list.
+- Missing parent or child telemetry.
+
+Before concluding that exploitation occurred, review:
+
+- Process ancestry and related process events.
+- Full command lines and execution timing.
+- The account and application-pool context.
+- IIS request logs and relevant application activity.
+- Approved application functionality and administrative activity.
+
+The synthetic fixture outcomes do not establish precision, recall, or
+operational detection effectiveness.
 
 ## Milestone boundary
-Only one rule, one positive fixture and one benign fixture are delivered here.
-The full project still needs additional variants, incomplete records, mutation
-coverage, CI, an investigation write-up and two further rules. Do not claim the
-complete Detection Pack release gate has been met.
+
+The current IIS milestone contains:
+
+- One experimental Sigma rule.
+- Two positive fixtures.
+- Two benign boundary fixtures.
+- One incomplete-event fixture.
+- Five passing fixture expectations.
+- Two detected predicate-removal mutations.
+- Successful pySigma parsing and SPL conversion.
+
+The full Detection Pack still requires two further rules with their fixture
+coverage, automated CI checks, an investigation write-up, clean-checkout
+reproduction, and release preparation.
+
+The complete Detection Pack release gate has not yet been met.
