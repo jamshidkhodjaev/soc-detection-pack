@@ -1,0 +1,29 @@
+title: Microsoft Office Directly Spawning PowerShell
+id: f6090f8e-cb49-4f51-8ae9-1a1ef024ab62
+status: experimental
+description: Detects selected Microsoft Office applications directly creating PowerShell. A match is an investigation lead and does not establish malicious document execution.
+author: Jamshid Khodjaev
+date: 2026-10-26
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        ParentImage|endswith:
+            - '\WINWORD.EXE'
+            - '\EXCEL.EXE'
+            - '\POWERPNT.EXE'
+            - '\OUTLOOK.EXE'
+        Image|endswith:
+            - '\powershell.exe'
+            - '\pwsh.exe'
+    condition: selection
+fields:
+    - Image
+    - ParentImage
+    - CommandLine
+    - User
+falsepositives:
+    - Approved Office macros or add-ins invoking PowerShell
+    - Authorized business automation launched through Office
+level: high

@@ -1,0 +1,1 @@
+EventID=1 ParentImage IN ("*\\WINWORD.EXE", "*\\EXCEL.EXE", "*\\POWERPNT.EXE", "*\\OUTLOOK.EXE") Image IN ("*\\powershell.exe", "*\\pwsh.exe") | table Image,ParentImage,CommandLine,User

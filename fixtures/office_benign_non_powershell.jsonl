@@ -1,0 +1,1 @@
+{"synthetic": true, "product": "windows", "category": "process_creation", "EventID": 1, "timestamp_utc": "2026-10-26T12:03:00Z", "host": "OFFICE-LAB01", "event_id": "syn-office-benign-002", "Image": "C:\\Windows\\System32\\notepad.exe", "ParentImage": "C:\\Program Files\\Microsoft Office\\root\\Office16\\WINWORD.EXE", "CommandLine": "notepad.exe", "User": "LAB\\analyst"}

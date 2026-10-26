@@ -1,4 +1,4 @@
-"""Verify that fixtures detect removal of essential IIS rule predicates."""
+"""Verify that fixtures detect removal of parent and child predicates."""
 
 import copy
 import io
@@ -22,9 +22,10 @@ def check(rule, manifest, root):
 
 def main():
     root = Path(__file__).resolve().parent.parent
-    manifest = json.loads(
-        (root / "tests/iis_manifest.json").read_text()
+    manifest_name = (
+        sys.argv[1] if len(sys.argv) > 1 else "tests/iis_manifest.json"
     )
+    manifest = json.loads((root / manifest_name).read_text())
     rule = yaml.safe_load((root / manifest["rule"]).read_text())
 
     result, output = check(rule, manifest, root)

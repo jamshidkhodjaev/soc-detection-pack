@@ -1,0 +1,35 @@
+{
+  "rule": "rules/office_spawning_powershell.yml",
+  "cases": [
+    {
+      "fixture": "fixtures/office_positive_word.jsonl",
+      "event_id": "syn-office-001",
+      "expected_match": true,
+      "reason": "Word directly creates PowerShell, satisfying both parent and child predicates."
+    },
+    {
+      "fixture": "fixtures/office_positive_excel.jsonl",
+      "event_id": "syn-office-002",
+      "expected_match": true,
+      "reason": "Excel directly creates PowerShell 7, covering another Office parent and the pwsh.exe child variant."
+    },
+    {
+      "fixture": "fixtures/office_benign_explorer.jsonl",
+      "event_id": "syn-office-benign-001",
+      "expected_match": false,
+      "reason": "PowerShell is the child, but Explorer is outside the Office-parent list."
+    },
+    {
+      "fixture": "fixtures/office_benign_non_powershell.jsonl",
+      "event_id": "syn-office-benign-002",
+      "expected_match": false,
+      "reason": "Word is the parent, but Notepad is outside the PowerShell-child list."
+    },
+    {
+      "fixture": "fixtures/office_incomplete_missing_image.jsonl",
+      "event_id": "syn-office-incomplete-001",
+      "expected_match": false,
+      "reason": "Image is missing, so the required PowerShell child executable cannot be established from the detection fields."
+    }
+  ]
+}
