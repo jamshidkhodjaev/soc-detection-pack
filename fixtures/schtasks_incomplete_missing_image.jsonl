@@ -1,0 +1,1 @@
+{"synthetic": true, "product": "windows", "category": "process_creation", "EventID": 1, "timestamp_utc": "2026-10-26T20:06:00Z", "host": "TASK-LAB01", "event_id": "syn-task-incomplete-001", "ParentImage": "C:\\Windows\\System32\\cmd.exe", "CommandLine": "schtasks.exe /Create /TN PortfolioDemo /TR C:\\Windows\\Temp\\demo.exe /SC ONLOGON", "User": "LAB\\analyst"}

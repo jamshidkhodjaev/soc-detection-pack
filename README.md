@@ -2,47 +2,57 @@
 
 Experimental SOC detection engineering portfolio project by Jamshid Khodjaev.
 
-This project develops Sigma rules with documented hypotheses, synthetic
-event fixtures, behavioral evaluation, mutation checks, and Splunk SPL conversion.
+Three Sigma rules with documented hypotheses, synthetic event fixtures,
+behavioral evaluation, predicate-removal mutation checks, and Splunk SPL generation.
 
-Two of three planned rules are implemented. Across these rules, ten synthetic
-fixture expectations passed and four predicate-removal mutations were detected.
+Local validation completed:
+
+- Three rules parsed with pySigma.
+- 17 synthetic fixture expectations passed.
+- Seven predicate-removal mutations detected.
+- Three SPL queries generated using the Sysmon pipeline.
+
+A GitHub Actions workflow has been authored; a successful run is not yet verified.
+The investigation write-up, clean-checkout verification, and release remain pending.
 
 All fixtures are synthetic. Generated SPL has not been executed in Splunk.
 No production readiness or measured detection accuracy is claimed.
 
-## Detection scope and status
+## Detection scope
 
-| Rule | Hypothesis | Status |
-| --- | --- | --- |
-| IIS spawning a shell | An IIS worker directly creates CMD or PowerShell | Implemented with initial validation |
-| Office spawning PowerShell | Word, Excel, PowerPoint, or Outlook directly creates PowerShell | Implemented with initial validation |
-| Process-based scheduled-task creation | Exact suspicious command-line behavior to be defined | Planned |
+| Rule | Required behavior |
+| --- | --- |
+| IIS spawning a shell | w3wp.exe directly creates cmd.exe, powershell.exe, or pwsh.exe |
+| Office spawning PowerShell | Word, Excel, PowerPoint, or Outlook directly creates powershell.exe or pwsh.exe |
+| Scheduled-task creation referencing AppData or Temp | schtasks.exe command line contains /create, /tr, and an AppData or Temp directory reference |
 
 Matches are investigation leads, not proof of compromise.
-Approved application functionality or business automation may also match.
+Approved applications, installers, or business automation may also match.
 
-The IIS rule includes cmd.exe, powershell.exe, and pwsh.exe.
-The Office rule includes powershell.exe and pwsh.exe.
+The scheduled-task rule uses substring matching. It does not parse arguments,
+establish the actual task action, or confirm successful task registration.
 
-## Current validation status
+## Validation status
 
 Local validation on macOS, 26 October 2026:
 
-| Check | IIS rule | Office rule |
-| --- | --- | --- |
-| pySigma parsing | Passed | Passed |
-| Synthetic fixture expectations | 5/5 passed | 5/5 passed |
-| Predicate-removal mutations | 2/2 detected | 2/2 detected |
-| SPL conversion with Sysmon pipeline | Completed | Completed |
-| Execution in Splunk | Not tested | Not tested |
+| Check | IIS | Office | Scheduled task |
+| --- | --- | --- | --- |
+| pySigma parsing | Passed | Passed | Passed |
+| Fixture expectations | 5/5 passed | 5/5 passed | 7/7 passed |
+| Predicate-removal mutations | 2/2 detected | 2/2 detected | 3/3 detected |
+| SPL generation | Completed | Completed | Completed |
+| Execution in Splunk | Not tested | Not tested | Not tested |
 
-Project-wide checks still pending:
+Project-wide status:
 
-- GitHub Actions.
-- Investigation write-up.
-- Clean-checkout reproduction.
-- Full three-rule release.
+| Deliverable | Status |
+| --- | --- |
+| Three rules and local validation | Completed |
+| GitHub Actions workflow | Authored; successful run unverified |
+| Investigation write-up | Pending |
+| Clean-checkout reproduction | Pending |
+| Tagged v0.1.0 release | Pending |
 
 See [the validation record](docs/validation-status.md) for details.
 
@@ -50,25 +60,28 @@ See [the validation record](docs/validation-status.md) for details.
 
 | Path | Purpose |
 | --- | --- |
-| `rules/` | Experimental Sigma YAML rules |
-| `fixtures/` | Synthetic normalized JSONL events |
-| `tests/iis_manifest.json` | IIS fixtures, expected outcomes, and reasons |
-| `tests/office_manifest.json` | Office fixtures, expected outcomes, and reasons |
-| `scripts/parse_rule.py` | pySigma parsing check |
-| `scripts/evaluate.py` | Restricted local Sigma evaluator |
-| `scripts/mutation_check.py` | Parent- and child-predicate removal checks |
-| `converted/` | Generated Splunk SPL queries |
-| `docs/telemetry.md` | IIS hypothesis and telemetry/evaluator contract |
-| `docs/powershell-context.md` | Office hypothesis, boundaries, and validation |
-| `docs/validation-status.md` | Validation results and remaining work |
-| `requirements.in` | Direct dependencies |
-| `requirements.lock.txt` | Resolved dependency versions used locally |
+| rules/ | Experimental Sigma YAML rules |
+| fixtures/ | Synthetic normalized JSONL events |
+| tests/iis_manifest.json | IIS fixture expectations |
+| tests/office_manifest.json | Office fixture expectations |
+| tests/schtasks_manifest.json | Scheduled-task fixture expectations |
+| scripts/parse_rule.py | pySigma parsing check |
+| scripts/evaluate.py | Restricted local Sigma evaluator |
+| scripts/mutation_check.py | Selection-predicate removal checks |
+| converted/ | Generated Splunk SPL queries |
+| docs/telemetry.md | IIS hypothesis and shared telemetry/evaluator contract |
+| docs/powershell-context.md | Office hypothesis and validation |
+| docs/scheduled-task-context.md | Scheduled-task hypothesis and validation |
+| docs/validation-status.md | Results, limitations, and remaining work |
+| .github/workflows/checks.yml | Automated validation workflow |
+| requirements.in | Direct dependencies |
+| requirements.lock.txt | Resolved dependency versions used locally |
 
 ## Setup
 
 Run commands from the repository root in macOS Terminal or VS Code's terminal.
 
-The observed local validation used Python 3.13.0.
+Observed local validation used Python 3.13.0.
 
 Check Python:
 
@@ -83,13 +96,14 @@ python3 -m venv .venv
 source .venv/bin/activate
 ```
 
-Skip environment creation if a working `.venv` already exists.
+Skip creation if a working .venv already exists.
 Activation applies separately to each terminal session.
 
-Install the recorded dependencies:
+Install recorded dependencies:
 
 ```bash
 python -m pip install -r requirements.lock.txt
+python -m pip check
 ```
 
 Direct dependencies:
@@ -104,32 +118,35 @@ pysigma-pipeline-sysmon
 Sigma CLI uses pySigma for parsing. The Splunk backend generates SPL,
 the Sysmon pipeline supplies event mapping, and PyYAML loads rule YAML.
 
-Installation and reproduction from a clean checkout remain unverified.
-Virtual environments and backup environments should not be committed to Git.
+Clean-checkout reproduction remains unverified.
+Do not commit virtual environments or Python bytecode caches.
 
 ## Input contract
 
 The intended source model is Windows Sysmon Event ID 1: process creation.
 
 Each current fixture contains one UTF-8 JSON object on one physical line
-and carries `"synthetic": true`.
+and carries "synthetic": true.
 
 | Field | Meaning |
 | --- | --- |
-| `event_id` | Synthetic record identifier, distinct from the Windows event number |
-| `EventID` | Numeric Windows event type; integer 1 is in scope |
-| `timestamp_utc` | Event timestamp ending in Z |
-| `host` | Source computer |
-| `product`, `category` | Local routing metadata |
-| `Image` | Child executable path |
-| `ParentImage` | Direct parent executable path |
-| `CommandLine`, `User` | Investigation context |
+| event_id | Synthetic record identifier, distinct from the Windows event number |
+| EventID | Numeric Windows event type; integer 1 is in scope |
+| timestamp_utc | Event timestamp ending in Z |
+| host | Source computer |
+| product, category | Local routing metadata |
+| Image | Child executable path |
+| ParentImage | Direct parent executable path |
+| CommandLine | Full process command line |
+| User | Child-process security principal |
 
-Both current rules require matching Image and ParentImage values.
-CommandLine and User are not detection predicates.
+The IIS and Office rules require Image and ParentImage.
+The scheduled-task rule requires Image and CommandLine.
 
-Expected outcomes live in manifests, separately from event inputs.
-Incomplete fixtures deliberately omit a detection field.
+The current fixture runner also requires nonempty CommandLine and User context.
+Incomplete fixtures deliberately omit Image or ParentImage.
+
+Expected outcomes are stored in manifests, separately from event inputs.
 
 JSON escapes backslashes: `C:\\Windows` represents `C:\Windows` after parsing.
 
@@ -140,35 +157,45 @@ An event number alone does not identify its provider.
 
 ### IIS rule
 
-| Fixture ID | Scenario | Expected match |
-| --- | --- | --- |
-| syn-iis-001 | IIS spawning CMD | true |
-| syn-benign-001 | Explorer spawning CMD | false |
-| syn-iis-002 | IIS spawning PowerShell | true |
-| syn-benign-002 | IIS spawning Notepad | false |
-| syn-incomplete-001 | CMD event missing ParentImage | false |
+| Scenario | Expected match |
+| --- | --- |
+| IIS spawning CMD | true |
+| Explorer spawning CMD | false |
+| IIS spawning PowerShell | true |
+| IIS spawning Notepad | false |
+| CMD event missing ParentImage | false |
 
 ### Office rule
 
-| Fixture ID | Scenario | Expected match |
-| --- | --- | --- |
-| syn-office-001 | Word spawning Windows PowerShell | true |
-| syn-office-002 | Excel spawning PowerShell 7 | true |
-| syn-office-benign-001 | Explorer spawning Windows PowerShell | false |
-| syn-office-benign-002 | Word spawning Notepad | false |
-| syn-office-incomplete-001 | Word parent with Image missing | false |
+| Scenario | Expected match |
+| --- | --- |
+| Word spawning Windows PowerShell | true |
+| Excel spawning PowerShell 7 | true |
+| Explorer spawning Windows PowerShell | false |
+| Word spawning Notepad | false |
+| Word parent with Image missing | false |
 
-Benign boundary cases test events outside a rule's conditions.
-A non-match does not establish that the activity is safe.
+### Scheduled-task rule
 
-Likewise, a missing-field non-match means the available data cannot satisfy
-the rule. The current incomplete fixtures return false without crashing.
+| Scenario | Expected match |
+| --- | --- |
+| Creation command referencing AppData | true |
+| Creation command referencing Temp with uppercase executable and switches | true |
+| Creation command without AppData or Temp | false |
+| Task-change command missing /create | false |
+| XML-based creation command missing /tr | false |
+| Matching command text in a cmd.exe event | false |
+| Image missing | false |
+
+Negative cases test rule boundaries; a non-match does not establish safety.
+Missing-field non-matches indicate insufficient data to satisfy the rule.
 
 ## Check A: parse the rules
 
 ```bash
 python scripts/parse_rule.py rules/iis_worker_spawning_shell.yml
 python scripts/parse_rule.py rules/office_spawning_powershell.yml
+python scripts/parse_rule.py rules/schtasks_creation_suspicious_path.yml
 ```
 
 Each command should report:
@@ -177,38 +204,39 @@ Each command should report:
 PASS: pySigma parsed 1 rule (no fixture evaluation or SPL execution)
 ```
 
-Parsing checks that pySigma understands the rule structure and detection syntax.
-It does not establish matching correctness or complete official JSON Schema validation.
+Parsing checks that pySigma understands each rule.
+It does not establish behavioral correctness or complete official JSON Schema validation.
 
 ## Check B: evaluate fixtures
 
 ```bash
 python scripts/evaluate.py tests/iis_manifest.json
 python scripts/evaluate.py tests/office_manifest.json
+python scripts/evaluate.py tests/schtasks_manifest.json
 ```
 
-Each command should end with:
+Expected summaries:
 
-```text
-5/5 fixture expectations passed
-```
+- IIS: 5/5 fixture expectations passed.
+- Office: 5/5 fixture expectations passed.
+- Scheduled task: 7/7 fixture expectations passed.
 
-The evaluator reads the actual YAML selection rather than hard-coding
-the intended detection.
+The evaluator reads the actual YAML selection.
 
-Supported subset:
+Supported structure and modifiers:
 
-- One nonempty mapping named `selection`.
-- `condition: selection`.
-- `FIELD|endswith` with nonempty literal strings or lists of such strings.
-- AND between fields and OR between list values.
-- Case-insensitive comparison using Python `casefold`.
+- One nonempty selection mapping and condition: selection.
+- AND between selection entries.
+- FIELD|endswith: at least one literal suffix.
+- FIELD|contains: at least one literal substring.
+- FIELD|contains|all: every listed literal substring.
+- Case-insensitive comparison using Python casefold.
 - Missing or null referenced detection fields evaluate false.
 
 Unsupported syntax, invalid inputs, and missing routing metadata cause errors.
 Different product, category, or integer event-type values evaluate false.
-
 The command-line evaluator rejects duplicate YAML mapping keys.
+
 This is a restricted project evaluator, not a general Sigma engine.
 
 | Exit code | Meaning |
@@ -222,97 +250,109 @@ This is a restricted project evaluator, not a general Sigma engine.
 ```bash
 python scripts/mutation_check.py tests/iis_manifest.json
 python scripts/mutation_check.py tests/office_manifest.json
+python scripts/mutation_check.py tests/schtasks_manifest.json
 ```
 
-Each command should report:
+Expected mutation summaries:
 
-```text
-PASS: original rule passes all fixture expectations
-PASS: tests caught removal of ParentImage|endswith
-PASS: tests caught removal of Image|endswith
-2/2 mutations detected; original YAML file unchanged
-```
+- IIS: 2/2 mutations detected.
+- Office: 2/2 mutations detected.
+- Scheduled task: 3/3 mutations detected.
+
+The script first requires the original rule to pass.
+It enumerates selection entries and removes each entry from a separate
+in-memory copy. The original YAML files are not modified.
+
+A mutation is detected when fixture expectations fail.
+Execution errors do not count as detected mutations.
 
 Without a manifest argument, the script defaults to tests/iis_manifest.json.
 
-The script first requires the original rule to pass. It then removes one
-predicate from each of two separate in-memory copies.
-
-| Removed predicate | Boundary case that catches the mistake |
-| --- | --- |
-| ParentImage, IIS rule | Explorer spawning CMD |
-| Image, IIS rule | IIS spawning Notepad |
-| ParentImage, Office rule | Explorer spawning PowerShell |
-| Image, Office rule | Word spawning Notepad |
-
-Execution errors do not count as detected mutations.
-The script does not modify the original YAML files.
-
-Mutation checks demonstrate sensitivity to these specific mistakes;
-they do not establish complete defect coverage.
+These checks catch specific predicate-removal mistakes.
+They do not establish complete defect coverage.
 
 ## Check D: generate Splunk SPL
 
 ```bash
 sigma convert -t splunk -p sysmon -f default -o converted/iis_worker_spawning_shell.spl rules/iis_worker_spawning_shell.yml
 sigma convert -t splunk -p sysmon -f default -o converted/office_spawning_powershell.spl rules/office_spawning_powershell.yml
+sigma convert -t splunk -p sysmon -f default -o converted/schtasks_creation_suspicious_path.spl rules/schtasks_creation_suspicious_path.yml
 ```
 
-Each command should complete without errors and produce a nonempty query.
+Each command should complete without errors and generate a nonempty query.
 
-Inspect the generated files:
+The Sysmon pipeline supplies EventID=1 and retains raw event fields.
+Queries use raw Sysmon fields rather than Splunk CIM/tstats.
 
-```bash
-cat converted/iis_worker_spawning_shell.spl
-cat converted/office_spawning_powershell.spl
-```
+The table clause selects displayed fields; it adds no matching predicates.
 
-The Sysmon pipeline adds EventID=1 and retains raw Image and ParentImage fields.
-These queries use raw Sysmon fields rather than Splunk CIM/tstats.
+No Splunk index is assumed. Deployment requires appropriate data scope,
+provider/channel verification, field extraction, and testing in Splunk.
 
-The table clause selects displayed investigation fields; it adds no predicates.
+## GitHub Actions
 
-No Splunk index is assumed. A real deployment must establish the correct data
-scope, provider/channel, and field extraction, then execute and test the query.
+Workflow: .github/workflows/checks.yml
+
+Configured triggers:
+
+- Push.
+- Pull request.
+- Manual workflow dispatch.
+
+The workflow uses an Ubuntu runner with Python 3.13 to:
+
+1. Install recorded dependencies and run pip check.
+2. Parse all three rules.
+3. Evaluate all fixture manifests.
+4. Run predicate-removal mutation checks.
+5. Regenerate SPL into temporary files.
+6. Compare regenerated queries with committed queries.
+
+The SPL comparison checks exact text, not semantic equivalence.
+A formatting difference can therefore cause a failure requiring review.
+
+The workflow has been authored, but no successful run is yet verified.
+Creating the workflow file alone does not establish that CI passes.
 
 ## What validation demonstrates
 
 | Check | Demonstrates | Does not demonstrate |
 | --- | --- | --- |
-| Parsing | pySigma understands each rule | Correct matching behavior |
-| Fixture evaluation | Ten expected synthetic outcomes | Real-world accuracy or SPL correctness |
-| Mutation checks | Four specific predicate removals are caught | Complete defect coverage |
+| Parsing | pySigma understands the rules | Correct matching behavior |
+| Fixture evaluation | 17 expected synthetic outcomes | Real-world accuracy or SPL correctness |
+| Mutation checks | Seven predicate removals are caught | Complete defect coverage |
 | Conversion | SPL generation with the selected pipeline | Successful execution in Splunk |
+| CI, once verified | Checks reproduce in the configured runner | Production effectiveness |
 
-Parsing, behavioral evaluation, mutation checking, and conversion are separate checks.
-The evaluator does not execute generated SPL.
+Parsing, fixture evaluation, mutation checking, and conversion are separate checks.
+The local evaluator does not execute generated SPL.
 
-## Limitations and investigation guidance
+## Limitations
 
-- All current events are synthetic; live collection is outside this implementation.
-- Approved applications, macros, add-ins, or automation may match.
-- Renamed executables, indirect descendants, in-process execution, and executable
-  names outside the lists can fall outside coverage.
-- Missing telemetry can prevent matching.
+- All event fixtures are synthetic.
+- Approved application behavior or administrative automation can match.
+- Renamed executables, indirect execution, and absent telemetry can prevent matching.
 - The IIS pwsh.exe branch has no dedicated positive fixture.
 - Office PowerPoint and Outlook branches have no dedicated positive fixtures.
+- Scheduled-task detection uses substrings rather than parsed arguments.
+- A directory reference may appear outside the actual scheduled-task action.
+- Environment variables are not expanded and paths are not resolved.
+- A matching process event does not confirm successful task registration.
 - The fixtures do not establish precision, recall, or operational effectiveness.
-- Neither generated query has been executed in Splunk.
-- Automated CI and clean-checkout reproduction remain pending.
+- Generated queries have not been executed in Splunk.
+- CI execution and clean-checkout reproduction remain unverified.
 
 Investigate process ancestry, command lines, accounts, timing, related logs,
 and approved business behavior before concluding that compromise occurred.
 
 ## Remaining work
 
-- Define and implement the process-based scheduled-task-creation rule.
-- Add at least two positive, two benign, and one incomplete case for rule three.
-- Extend the evaluator explicitly if additional syntax is required.
-- Parse and convert the third rule.
-- Add GitHub Actions checks that expose failures.
+- Commit and push the third-rule and workflow checkpoint.
+- Inspect the first GitHub Actions run and resolve failures.
 - Write an evidence-based investigation summary.
 - Verify reproduction from a clean checkout.
-- Review documentation and prepare a tagged v0.1.0 release.
+- Update documentation with verified CI and reproduction results.
+- Prepare a tagged v0.1.0 release.
 
 The full Detection Pack release gate has not yet been met.
 
@@ -324,5 +364,8 @@ The full Detection Pack release gate has not yet been met.
 - [Sigma rule specification](https://sigmahq.io/sigma-specification/specification/sigma-rules-specification.html)
 
 Scope follows SOC_Projects_Implementation_Plan(1).docx, pages 2–3,
-dated 25 October 2026. The PowerShell-context hypothesis is implemented
-as selected Office applications directly spawning PowerShell.
+dated 25 October 2026.
+
+The PowerShell-context hypothesis is implemented as selected Office applications
+directly spawning PowerShell. The scheduled-task hypothesis is implemented as
+creation commands referencing AppData or Temp directory substrings.

@@ -1,0 +1,28 @@
+title: Scheduled Task Creation Referencing AppData or Temp
+id: 7f8ef440-4e73-4b56-8a32-0ad932ec65b7
+status: experimental
+description: Detects schtasks creation commands referencing AppData or Temp paths. Uses substring matching and does not establish successful task creation or malicious persistence.
+author: Jamshid Khodjaev
+date: 2026-10-26
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\schtasks.exe'
+        CommandLine|contains|all:
+            - '/create'
+            - '/tr'
+        CommandLine|contains:
+            - '\AppData\'
+            - '\Temp\'
+    condition: selection
+fields:
+    - Image
+    - ParentImage
+    - CommandLine
+    - User
+falsepositives:
+    - Authorized installers or updaters creating scheduled tasks
+    - Approved administrative automation referencing AppData or Temp
+level: medium

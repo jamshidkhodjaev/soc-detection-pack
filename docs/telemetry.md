@@ -72,27 +72,48 @@ verify a provider/channel field.
 
 ## Local evaluator contract
 
-The evaluator loads the actual Sigma YAML rather than hard-coding IIS
-predicates.
+The evaluator loads the actual Sigma YAML rather than hard-coding
+individual detection rules.
 
-Supported detection syntax:
+Supported detection structure:
 
 - One nonempty mapping named `selection`.
 - `condition: selection`.
-- `FIELD|endswith` with a nonempty literal string or nonempty list of such strings.
-- AND between mapping entries.
-- OR between values in a list.
+- AND between all selection entries.
 - Case-insensitive comparison using Python `casefold`.
 
-The current fixtures use ASCII Windows paths. A literal backslash before the
-executable name provides a path-component boundary in the suffix comparison.
+Supported field modifiers:
+
+| Syntax | Meaning |
+| --- | --- |
+| `FIELD|endswith` | Match at least one literal suffix |
+| `FIELD|contains` | Match at least one literal substring |
+| `FIELD|contains|all` | Match every listed literal substring |
+
+Each entry accepts a nonempty literal string or a nonempty list of
+nonempty literal strings.
+
+For `endswith` and plain `contains`, list values use OR.
+For `contains|all`, list values use AND.
+
+Different entries can reference the same event field with different
+supported modifiers. Each entry remains a separate required predicate.
+
+The current fixtures use ASCII Windows paths. A literal backslash before
+an executable name provides a path-component boundary for suffix matching.
 
 Wildcards (`*` and `?`), regular expressions, other modifiers, other condition
 expressions, correlation, filters, and custom taxonomy are unsupported.
 Unsupported syntax causes an error.
 
-Backslashes in suffixes are literal characters; the evaluator does not
-interpret Sigma wildcard escape syntax.
+Backslashes are matched literally after JSON or YAML decoding.
+The evaluator does not interpret Sigma wildcard escape syntax.
+
+Matching does not parse command-line arguments, expand environment
+variables, resolve paths, or establish whether a command succeeded.
+
+The IIS and Office rules use `endswith`.
+The scheduled-task rule additionally uses `contains` and `contains|all`.
 
 ### Missing fields and invalid inputs
 
@@ -159,7 +180,8 @@ python scripts/mutation_check.py
 ```
 
 The script first requires the original rule to pass all fixture expectations.
-It then creates separate in-memory copies and removes one predicate from each.
+It then enumerates the selected rule's selection entries, creates a separate
+in-memory copy for each entry, and removes that entry from its copy.
 
 | Mutation | Expected test response |
 | --- | --- |
@@ -238,8 +260,15 @@ The current IIS milestone contains:
 - Two detected predicate-removal mutations.
 - Successful pySigma parsing and SPL conversion.
 
-The full Detection Pack still requires two further rules with their fixture
-coverage, automated CI checks, an investigation write-up, clean-checkout
-reproduction, and release preparation.
+All three planned rules now have local parsing, fixture evaluation,
+predicate-removal mutation checks, and SPL generation completed.
+
+Across the project, 17 fixture expectations passed and seven
+predicate-removal mutations were detected.
+
+The GitHub Actions workflow has been authored, but a successful run
+has not yet been verified. The full Detection Pack still requires
+the investigation write-up, clean-checkout reproduction,
+documentation review, and release preparation.
 
 The complete Detection Pack release gate has not yet been met.

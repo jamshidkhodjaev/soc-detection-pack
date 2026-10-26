@@ -1,0 +1,68 @@
+name: Detection Pack Checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install recorded dependencies
+        run: |
+          python -m pip install -r requirements.lock.txt
+          python -m pip check
+
+      - name: Parse all three rules
+        run: |
+          set -euo pipefail
+          python scripts/parse_rule.py rules/iis_worker_spawning_shell.yml
+          python scripts/parse_rule.py rules/office_spawning_powershell.yml
+          python scripts/parse_rule.py rules/schtasks_creation_suspicious_path.yml
+
+      - name: Evaluate all fixture manifests
+        run: |
+          set -euo pipefail
+          python scripts/evaluate.py tests/iis_manifest.json
+          python scripts/evaluate.py tests/office_manifest.json
+          python scripts/evaluate.py tests/schtasks_manifest.json
+
+      - name: Run predicate-removal mutation checks
+        run: |
+          set -euo pipefail
+          python scripts/mutation_check.py tests/iis_manifest.json
+          python scripts/mutation_check.py tests/office_manifest.json
+          python scripts/mutation_check.py tests/schtasks_manifest.json
+
+      - name: Regenerate and compare SPL queries
+        run: |
+          set -euo pipefail
+          for rule in \
+            iis_worker_spawning_shell \
+            office_spawning_powershell \
+            schtasks_creation_suspicious_path
+          do
+            output="$RUNNER_TEMP/$rule.spl"
+            sigma convert -t splunk -p sysmon -f default \
+              -o "$output" "rules/$rule.yml"
+            test -s "$output"
+            diff -u "converted/$rule.spl" "$output"
+          done

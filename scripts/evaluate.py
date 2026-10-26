@@ -8,46 +8,105 @@ from pathlib import Path
 def compile_rule(rule):
     if not isinstance(rule, dict):
         raise ValueError("Expected one rule mapping")
-    if rule.get("logsource") != {"category": "process_creation", "product": "windows"}:
+
+    if rule.get("logsource") != {
+        "category": "process_creation",
+        "product": "windows",
+    }:
         raise ValueError("Unsupported logsource")
-    if "taxonomy" in rule or "correlation" in rule or "filter" in rule:
+
+    if any(key in rule for key in ("taxonomy", "correlation", "filter")):
         raise ValueError("Unsupported taxonomy, correlation or filter")
+
     detection = rule.get("detection", {})
-    if set(detection) != {"selection", "condition"} or detection["condition"] != "selection":
-        raise ValueError("Only one selection and condition: selection are supported")
+    if (
+        not isinstance(detection, dict)
+        or set(detection) != {"selection", "condition"}
+        or detection["condition"] != "selection"
+    ):
+        raise ValueError(
+            "Only one selection and condition: selection are supported"
+        )
+
     selection = detection["selection"]
     if not isinstance(selection, dict) or not selection:
         raise ValueError("Selection must be a nonempty mapping")
+
     predicates = []
+
     for key, value in selection.items():
+        if not isinstance(key, str):
+            raise ValueError("Selection keys must be strings")
+
         parts = key.split("|")
-        if len(parts) != 2 or parts[1] != "endswith" or not parts[0]:
+        field = parts[0]
+        modifiers = tuple(parts[1:])
+
+        if not field or modifiers not in (
+            ("endswith",),
+            ("contains",),
+            ("contains", "all"),
+        ):
             raise ValueError(f"Unsupported field/modifier: {key}")
+
         values = value if isinstance(value, list) else [value]
-        if not values or any(not isinstance(v, str) or not v or "*" in v or "?" in v for v in values):
-            raise ValueError("Only nonempty literal string suffixes are supported")
-        predicates.append((parts[0], tuple(v.casefold() for v in values)))
+        if not values or any(
+            not isinstance(v, str) or not v or "*" in v or "?" in v
+            for v in values
+        ):
+            raise ValueError(
+                "Only nonempty literal strings without wildcards are supported"
+            )
+
+        predicates.append(
+            (
+                field,
+                modifiers[0],
+                tuple(v.casefold() for v in values),
+                modifiers == ("contains", "all"),
+            )
+        )
+
     return predicates
 
 
 def matches(predicates, event):
-    # The rule's logsource is metadata; explicitly route the normalized fixtures.
     for key in ("product", "category", "EventID"):
         if key not in event:
             raise ValueError(f"Missing routing field: {key}")
+
     if type(event["EventID"]) is not int:
         raise ValueError("EventID must be an integer")
-    if (event["product"], event["category"], event["EventID"]) != ("windows", "process_creation", 1):
+
+    if (
+        event["product"],
+        event["category"],
+        event["EventID"],
+    ) != ("windows", "process_creation", 1):
         return False
+
     outcomes = []
-    for field, suffixes in predicates:
+
+    for field, operation, values, require_all in predicates:
         value = event.get(field)
+
         if value is None:
             outcomes.append(False)
-        elif not isinstance(value, str):
+            continue
+
+        if not isinstance(value, str):
             raise ValueError(f"Expected string for {field}")
+
+        normalized = value.casefold()
+
+        if operation == "endswith":
+            outcomes.append(normalized.endswith(values))
+        elif operation == "contains":
+            found = [literal in normalized for literal in values]
+            outcomes.append(all(found) if require_all else any(found))
         else:
-            outcomes.append(value.casefold().endswith(suffixes))
+            raise ValueError(f"Unsupported operation: {operation}")
+
     return all(outcomes)
 
 

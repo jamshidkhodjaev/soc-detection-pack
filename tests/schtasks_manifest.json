@@ -1,0 +1,47 @@
+{
+  "rule": "rules/schtasks_creation_suspicious_path.yml",
+  "cases": [
+    {
+      "fixture": "fixtures/schtasks_positive_appdata.jsonl",
+      "event_id": "syn-task-001",
+      "expected_match": true,
+      "reason": "schtasks.exe is launched with both creation switches and a command line referencing an AppData path."
+    },
+    {
+      "fixture": "fixtures/schtasks_positive_temp.jsonl",
+      "event_id": "syn-task-002",
+      "expected_match": true,
+      "reason": "Both switches and a Temp path are present; uppercase executable and switches exercise case-insensitive matching."
+    },
+    {
+      "fixture": "fixtures/schtasks_benign_other_path.jsonl",
+      "event_id": "syn-task-benign-001",
+      "expected_match": false,
+      "reason": "The executable and switches match, but neither AppData nor Temp appears in the command line."
+    },
+    {
+      "fixture": "fixtures/schtasks_benign_missing_create.jsonl",
+      "event_id": "syn-task-benign-002",
+      "expected_match": false,
+      "reason": "The command changes a task and lacks /create; /tr alone must not satisfy contains|all."
+    },
+    {
+      "fixture": "fixtures/schtasks_benign_missing_tr.jsonl",
+      "event_id": "syn-task-benign-003",
+      "expected_match": false,
+      "reason": "XML-based creation lacks /tr; /create alone must not satisfy contains|all."
+    },
+    {
+      "fixture": "fixtures/schtasks_benign_other_image.jsonl",
+      "event_id": "syn-task-benign-004",
+      "expected_match": false,
+      "reason": "The command line contains matching text, but this event's executable is cmd.exe rather than schtasks.exe."
+    },
+    {
+      "fixture": "fixtures/schtasks_incomplete_missing_image.jsonl",
+      "event_id": "syn-task-incomplete-001",
+      "expected_match": false,
+      "reason": "Image is missing, so the required schtasks.exe executable cannot be established."
+    }
+  ]
+}

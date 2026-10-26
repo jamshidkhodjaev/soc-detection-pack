@@ -4,21 +4,28 @@ Date: 26 October 2026
 
 ## Current milestone
 
-Two of the three planned Sigma rules are implemented with synthetic
-fixture evaluation, predicate-removal mutation checks, and SPL conversion.
+All three planned Sigma rules have passed local parsing, synthetic fixture
+evaluation, predicate-removal mutation checks, and Splunk SPL generation.
 
-| Check | IIS spawning a shell | Office spawning PowerShell |
-| --- | --- | --- |
-| pySigma parsing | Passed | Passed |
-| Positive fixtures | 2/2 passed | 2/2 passed |
-| Benign boundary fixtures | 2/2 passed | 2/2 passed |
-| Incomplete-event fixture | 1/1 passed | 1/1 passed |
-| Predicate-removal mutations | 2/2 detected | 2/2 detected |
-| SPL conversion using Sysmon pipeline | Completed | Completed |
-| Execution in Splunk | Not tested | Not tested |
+| Check | IIS spawning a shell | Office spawning PowerShell | Scheduled-task creation |
+| --- | --- | --- | --- |
+| pySigma parsing | Passed | Passed | Passed |
+| Positive fixtures | 2/2 passed | 2/2 passed | 2/2 passed |
+| Negative boundary fixtures | 2/2 passed | 2/2 passed | 4/4 passed |
+| Incomplete-event fixture | 1/1 passed | 1/1 passed | 1/1 passed |
+| Predicate-removal mutations | 2/2 detected | 2/2 detected | 3/3 detected |
+| SPL generation using Sysmon pipeline | Completed | Completed | Completed |
+| Execution in Splunk | Not tested | Not tested | Not tested |
 
-Totals: ten fixture expectations passed and four predicate-removal
-mutations detected across two rules.
+Totals:
+
+- Three implemented rules.
+- 17 fixture expectations passed.
+- Seven predicate-removal mutations detected.
+- Three generated SPL queries.
+
+These are local validation results. They do not establish real-world
+detection accuracy or successful execution of the generated SPL.
 
 ## IIS rule
 
@@ -34,8 +41,7 @@ Validated fixture outcomes:
 - IIS spawning Notepad: no match.
 - Missing ParentImage: no match, without a crash.
 
-The fixture set detected removal of either ParentImage|endswith
-or Image|endswith.
+Fixtures detected removal of either parent or child predicate.
 
 ## Office rule
 
@@ -51,23 +57,56 @@ Validated fixture outcomes:
 - Word spawning Notepad: no match.
 - Missing Image: no match, without a crash.
 
-The fixture set detected removal of either ParentImage|endswith
-or Image|endswith.
+Fixtures detected removal of either parent or child predicate.
 
-## Shared validation tooling
+## Scheduled-task rule
+
+Rule: rules/schtasks_creation_suspicious_path.yml
+Manifest: tests/schtasks_manifest.json
+Query: converted/schtasks_creation_suspicious_path.spl
+
+Validated fixture outcomes:
+
+- Creation command referencing AppData: match.
+- Creation command referencing Temp with uppercase executable and switches: match.
+- Creation command without AppData or Temp: no match.
+- Task-change command missing /create: no match.
+- XML-based creation command missing /tr: no match.
+- Matching command text in a cmd.exe event: no match.
+- Missing Image: no match, without a crash.
+
+Fixtures detected removal of each selection entry:
+
+- Image|endswith
+- CommandLine|contains|all
+- CommandLine|contains
+
+## Shared tooling
 
 The evaluator reads the actual Sigma YAML selection.
+
+Supported modifiers:
+
+- FIELD|endswith: at least one literal suffix.
+- FIELD|contains: at least one literal substring.
+- FIELD|contains|all: every listed literal substring.
+
+All selection entries are joined by AND.
+Comparisons are case-insensitive using Python casefold.
+Unsupported syntax causes an error.
 
 The mutation script accepts a manifest path. Without an argument,
 it defaults to tests/iis_manifest.json.
 
 Each mutation run first requires the original rule to pass.
-Mutations operate on separate in-memory copies and do not modify
-the original YAML files.
+It then removes each selection entry from a separate in-memory copy.
+The original YAML files are not modified.
 
 Execution errors are not counted as detected mutations.
-
 Dependency versions are recorded in requirements.lock.txt.
+
+After extending the evaluator and mutation script, regression checks
+passed for both earlier rules.
 
 ## Reproduction commands
 
@@ -78,3 +117,76 @@ Run from the repository root with the virtual environment active.
 ```bash
 python scripts/parse_rule.py rules/iis_worker_spawning_shell.yml
 python scripts/parse_rule.py rules/office_spawning_powershell.yml
+python scripts/parse_rule.py rules/schtasks_creation_suspicious_path.yml
+```
+
+### Fixture evaluation
+
+```bash
+python scripts/evaluate.py tests/iis_manifest.json
+python scripts/evaluate.py tests/office_manifest.json
+python scripts/evaluate.py tests/schtasks_manifest.json
+```
+
+Expected summaries: 5/5, 5/5, and 7/7 fixture expectations passed.
+
+### Mutation checks
+
+```bash
+python scripts/mutation_check.py tests/iis_manifest.json
+python scripts/mutation_check.py tests/office_manifest.json
+python scripts/mutation_check.py tests/schtasks_manifest.json
+```
+
+Expected summaries: 2/2, 2/2, and 3/3 mutations detected.
+
+### SPL generation
+
+```bash
+sigma convert -t splunk -p sysmon -f default -o converted/iis_worker_spawning_shell.spl rules/iis_worker_spawning_shell.yml
+sigma convert -t splunk -p sysmon -f default -o converted/office_spawning_powershell.spl rules/office_spawning_powershell.yml
+sigma convert -t splunk -p sysmon -f default -o converted/schtasks_creation_suspicious_path.spl rules/schtasks_creation_suspicious_path.yml
+```
+
+Expected: each conversion completes without errors and produces a nonempty query.
+
+## GitHub Actions status
+
+Workflow: .github/workflows/checks.yml
+
+The workflow has been authored and is configured to:
+
+- Install recorded dependencies and check package compatibility.
+- Parse all three rules.
+- Evaluate all three fixture manifests.
+- Run all predicate-removal mutation checks.
+- Regenerate SPL into temporary files.
+- Compare regenerated queries with committed queries using exact text comparison.
+
+A successful workflow run has not yet been verified.
+CI must not be described as passing until its run result is checked.
+
+## Limitations
+
+- All fixtures are synthetic.
+- The evaluator supports only the documented restricted Sigma subset.
+- Passing fixtures does not establish precision, recall, or operational effectiveness.
+- Mutation checks cover specific predicate-removal mistakes, not every possible defect.
+- Generated SPL has not been executed in Splunk.
+- Missing-field non-matches do not establish that events are safe.
+- The IIS pwsh.exe branch has no dedicated positive fixture.
+- Office PowerPoint and Outlook branches have no dedicated positive fixtures.
+- Scheduled-task matching uses substrings rather than parsed arguments.
+- Directory references may occur outside the actual scheduled-task action.
+- Scheduled-task process creation does not establish successful task registration.
+- Clean-checkout reproduction remains pending.
+
+## Remaining work
+
+- Commit and push the third-rule and workflow checkpoint.
+- Inspect the first GitHub Actions run and resolve any failures.
+- Write the investigation summary.
+- Verify reproduction from a clean checkout.
+- Review documentation consistency and prepare the v0.1.0 release.
+
+The full Detection Pack release gate has not yet been met.

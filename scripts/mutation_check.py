@@ -1,4 +1,4 @@
-"""Verify that fixtures detect removal of parent and child predicates."""
+"""Verify that fixtures detect removal of each selection predicate."""
 
 import copy
 import io
@@ -13,7 +13,6 @@ from evaluate import run
 
 
 def check(rule, manifest, root):
-    # Capture fixture output so unexpected results can be shown clearly.
     output = io.StringIO()
     with redirect_stdout(output):
         result = run(rule, manifest, root)
@@ -36,7 +35,15 @@ def main():
 
     print("PASS: original rule passes all fixture expectations")
 
-    for predicate in ("ParentImage|endswith", "Image|endswith"):
+    predicates = list(rule["detection"]["selection"])
+    if len(predicates) < 2:
+        raise ValueError(
+            "Predicate-removal checks require at least two predicates"
+        )
+
+    detected = 0
+
+    for predicate in predicates:
         mutated = copy.deepcopy(rule)
         del mutated["detection"]["selection"][predicate]
 
@@ -46,9 +53,13 @@ def main():
             print(output)
             return 1
 
+        detected += 1
         print(f"PASS: tests caught removal of {predicate}")
 
-    print("2/2 mutations detected; original YAML file unchanged")
+    print(
+        f"{detected}/{len(predicates)} mutations detected; "
+        "original YAML file unchanged"
+    )
     return 0
 
 
