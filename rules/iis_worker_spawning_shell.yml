@@ -1,0 +1,26 @@
+title: IIS Worker Spawning a Windows Shell
+id: 9e204818-a515-4cce-8c6a-693076a4578b
+status: experimental
+description: Detects an IIS worker directly creating cmd.exe, powershell.exe, or pwsh.exe. This is an investigation lead and does not establish exploitation.
+author: Jamshid Khodjaev
+date: 2026-10-25
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        ParentImage|endswith: '\w3wp.exe'
+        Image|endswith:
+            - '\cmd.exe'
+            - '\powershell.exe'
+            - '\pwsh.exe'
+    condition: selection
+fields:
+    - Image
+    - ParentImage
+    - CommandLine
+    - User
+falsepositives:
+    - Approved web application features invoking command interpreters
+    - Authorized administrative or diagnostic actions through an application
+level: high

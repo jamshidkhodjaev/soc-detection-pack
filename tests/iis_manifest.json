@@ -1,0 +1,17 @@
+{
+  "rule": "rules/iis_worker_spawning_shell.yml",
+  "cases": [
+    {
+      "fixture": "fixtures/iis_positive.jsonl",
+      "event_id": "syn-iis-001",
+      "expected_match": true,
+      "reason": "IIS worker directly creates a command shell."
+    },
+    {
+      "fixture": "fixtures/iis_benign.jsonl",
+      "event_id": "syn-benign-001",
+      "expected_match": false,
+      "reason": "Same shell and command, but an interactive Explorer parent."
+    }
+  ]
+}
