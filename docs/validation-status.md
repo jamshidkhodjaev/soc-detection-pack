@@ -1,6 +1,6 @@
 # Validation status
 
-Date: 26 October 2026
+Date: 27 October 2026
 
 ## Current milestone
 
@@ -153,6 +153,7 @@ Expected: each conversion completes without errors and produces a nonempty query
 ## GitHub Actions status
 
 Workflow: .github/workflows/checks.yml
+Workflow run: https://github.com/jamshidkhodjaev/soc-detection-pack/actions/runs/40415739345
 
 The workflow has been authored and is configured to:
 
@@ -163,8 +164,23 @@ The workflow has been authored and is configured to:
 - Regenerate SPL into temporary files.
 - Compare regenerated queries with committed queries using exact text comparison.
 
-A successful workflow run has not yet been verified.
-CI must not be described as passing until its run result is checked.
+Successful GitHub Actions runs were reported for:
+
+- dde6bc3: initial automated validation.
+- 898bed8: validation after upgrading actions/setup-python to v6.
+
+For commit 898bed8, the workflow completed successfully in 16 seconds;
+the validate job completed in 13 seconds.
+
+The workflow checks dependency compatibility, parses all three rules,
+evaluates 17 fixture expectations, detects seven predicate-removal
+mutations, and regenerates and compares all three SPL queries.
+
+The earlier Node.js deprecation warning was absent from the second run.
+An informational ubuntu-latest migration notice remained.
+
+These results demonstrate reproduction in the configured GitHub runner.
+A separate clean-checkout verification on macOS also passed, as recorded below.
 
 ## Limitations
 
@@ -179,14 +195,38 @@ CI must not be described as passing until its run result is checked.
 - Scheduled-task matching uses substrings rather than parsed arguments.
 - Directory references may occur outside the actual scheduled-task action.
 - Scheduled-task process creation does not establish successful task registration.
-- Clean-checkout reproduction remains pending.
+
+## Clean-checkout verification
+
+Date: 27 October 2026
+Platform: macOS
+Verified commit: 896bdd8b2a0f61e3963edbe084ad17e0e28a6a22
+
+The repository was cloned from GitHub into a separate temporary directory.
+A new virtual environment was created and dependencies were installed
+from requirements.lock.txt.
+
+Results:
+
+- pip check reported no broken requirements.
+- All three rules passed pySigma parsing.
+- All 17 fixture expectations passed.
+- All seven predicate-removal mutations were detected.
+- All three SPL queries were regenerated successfully.
+- git diff --exit-code -- converted/ reported no differences.
+- git status --short produced no output.
+
+This verifies reproduction of the committed implementation in a fresh
+local environment. Generated SPL remains untested in Splunk.
 
 ## Remaining work
 
-- Commit and push the third-rule and workflow checkpoint.
-- Inspect the first GitHub Actions run and resolve any failures.
-- Write the investigation summary.
-- Verify reproduction from a clean checkout.
-- Review documentation consistency and prepare the v0.1.0 release.
+## Remaining work
+
+- Review the investigation summary in docs/investigation.md.
+- Reconcile README and other documentation with the verified results.
+- Commit and push the investigation and verification documentation.
+- Confirm CI passes for the final release candidate.
+- Prepare the v0.1.0 release.
 
 The full Detection Pack release gate has not yet been met.

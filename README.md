@@ -12,8 +12,12 @@ Local validation completed:
 - Seven predicate-removal mutations detected.
 - Three SPL queries generated using the Sysmon pipeline.
 
-A GitHub Actions workflow has been authored; a successful run is not yet verified.
-The investigation write-up, clean-checkout verification, and release remain pending.
+GitHub Actions passed for commit 898bed8. A separate clean-checkout
+verification on macOS also passed; the tested commit is recorded in
+docs/validation-status.md.
+
+The synthetic investigation write-up is available in docs/investigation.md.
+Final documentation review and the v0.1.0 release remain pending.
 
 All fixtures are synthetic. Generated SPL has not been executed in Splunk.
 No production readiness or measured detection accuracy is claimed.
@@ -49,9 +53,9 @@ Project-wide status:
 | Deliverable | Status |
 | --- | --- |
 | Three rules and local validation | Completed |
-| GitHub Actions workflow | Authored; successful run unverified |
-| Investigation write-up | Pending |
-| Clean-checkout reproduction | Pending |
+| GitHub Actions | Passed for commit 898bed8 |
+| Investigation write-up | Draft completed; synthetic case |
+| Clean-checkout reproduction | Passed on macOS; tested commit recorded in validation record |
 | Tagged v0.1.0 release | Pending |
 
 See [the validation record](docs/validation-status.md) for details.
@@ -76,6 +80,7 @@ See [the validation record](docs/validation-status.md) for details.
 | .github/workflows/checks.yml | Automated validation workflow |
 | requirements.in | Direct dependencies |
 | requirements.lock.txt | Resolved dependency versions used locally |
+| docs/investigation.md | Synthetic IIS investigation, alternative explanations, and evidence needed |
 
 ## Setup
 
@@ -118,7 +123,7 @@ pysigma-pipeline-sysmon
 Sigma CLI uses pySigma for parsing. The Splunk backend generates SPL,
 the Sysmon pipeline supplies event mapping, and PyYAML loads rule YAML.
 
-Clean-checkout reproduction remains unverified.
+Clean-checkout reproduction passed on macOS; see docs/validation-status.md.
 Do not commit virtual environments or Python bytecode caches.
 
 ## Input contract
@@ -311,8 +316,7 @@ The workflow uses an Ubuntu runner with Python 3.13 to:
 The SPL comparison checks exact text, not semantic equivalence.
 A formatting difference can therefore cause a failure requiring review.
 
-The workflow has been authored, but no successful run is yet verified.
-Creating the workflow file alone does not establish that CI passes.
+The workflow passed for commit 898bed8; see docs/validation-status.md for the run link.
 
 ## What validation demonstrates
 
@@ -340,18 +344,15 @@ The local evaluator does not execute generated SPL.
 - A matching process event does not confirm successful task registration.
 - The fixtures do not establish precision, recall, or operational effectiveness.
 - Generated queries have not been executed in Splunk.
-- CI execution and clean-checkout reproduction remain unverified.
-
+- CI and macOS clean-checkout checks passed for the recorded commits; later changes require their own validation.
 Investigate process ancestry, command lines, accounts, timing, related logs,
 and approved business behavior before concluding that compromise occurred.
 
 ## Remaining work
 
-- Commit and push the third-rule and workflow checkpoint.
-- Inspect the first GitHub Actions run and resolve failures.
-- Write an evidence-based investigation summary.
-- Verify reproduction from a clean checkout.
-- Update documentation with verified CI and reproduction results.
+- Review the synthetic investigation and documentation for consistency.
+- Commit and push the investigation and verification evidence.
+- Confirm CI passes for the final release candidate.
 - Prepare a tagged v0.1.0 release.
 
 The full Detection Pack release gate has not yet been met.
