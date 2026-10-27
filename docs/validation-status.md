@@ -1,232 +1,241 @@
 # Validation status
 
-Date: 27 October 2026
+Evidence reviewed: 27 October 2026. This is the authoritative record for
+validation counts and detailed evidence. All rules remain experimental.
 
-## Current milestone
+## Historical v0.1.0 release and baseline
 
-All three planned Sigma rules have passed local parsing, synthetic fixture
-evaluation, predicate-removal mutation checks, and Splunk SPL generation.
+The v0.1.0 tag was verified at
+`0a64078da75337dd85173a533224d665940e6c01`, the baseline for this maintenance work.
+GitHub REST API inspection on 27 October 2026 confirmed the
+[v0.1.0 experimental pre-release](https://github.com/jamshidkhodjaev/soc-detection-pack/releases/tag/v0.1.0)
+with `draft: false`, `prerelease: true`, and publication at `2026-10-27T00:40:02Z`.
+Release-note assertions are not independent proof of validation results.
 
-| Check | IIS spawning a shell | Office spawning PowerShell | Scheduled-task creation |
-| --- | --- | --- | --- |
-| pySigma parsing | Passed | Passed | Passed |
-| Positive fixtures | 2/2 passed | 2/2 passed | 2/2 passed |
-| Negative boundary fixtures | 2/2 passed | 2/2 passed | 4/4 passed |
-| Incomplete-event fixture | 1/1 passed | 1/1 passed | 1/1 passed |
-| Predicate-removal mutations | 2/2 detected | 2/2 detected | 3/3 detected |
-| SPL generation using Sysmon pipeline | Completed | Completed | Completed |
-| Execution in Splunk | Not tested | Not tested | Not tested |
+For current published versions and CI results, consult
+[GitHub Releases](https://github.com/jamshidkhodjaev/soc-detection-pack/releases)
+and [GitHub Actions](https://github.com/jamshidkhodjaev/soc-detection-pack/actions).
 
-Totals:
+## Re-established baseline
 
-- Three implemented rules.
-- 17 fixture expectations passed.
-- Seven predicate-removal mutations detected.
-- Three generated SPL queries.
+Local checks on 27 October 2026 reproduced the following baseline results before
+the maintenance fixtures were added:
 
-These are local validation results. They do not establish real-world
-detection accuracy or successful execution of the generated SPL.
+| Check | IIS | Office | Scheduled task | Total |
+| --- | --- | --- | --- | --- |
+| Synthetic expectations | 5/5 | 5/5 | 7/7 | 17/17 |
+| Predicate removals detected | 2/2 | 2/2 | 3/3 | 7/7 |
+| Individual list-value removals detected | 2/3 | 4/6 | 4/4 | 10/13 |
 
-## IIS rule
+The uncovered values were IIS `Image|endswith` value `\pwsh.exe`, and Office
+`ParentImage|endswith` values `\POWERPNT.EXE` and `\OUTLOOK.EXE`.
+These results were measured with an in-memory baseline probe and reproduced by
+the expanded mutation checker before adding the new fixtures.
 
-Rule: rules/iis_worker_spawning_shell.yml
-Manifest: tests/iis_manifest.json
-Query: converted/iis_worker_spawning_shell.spl
+## Local maintenance validation — 27 October 2026
 
-Validated fixture outcomes:
+The results below describe a dated local run against the maintenance working tree,
+including the scheduled-task additions and conversion wrapper. They are not a CI
+result and do not validate a future commit. Each release candidate requires checks
+against its exact commit.
 
-- IIS spawning CMD: match.
-- Explorer spawning CMD: no match.
-- IIS spawning PowerShell: match.
-- IIS spawning Notepad: no match.
-- Missing ParentImage: no match, without a crash.
+Environment: macOS, Python 3.13.0, isolated virtual environment outside the
+repository, with dependencies installed from `requirements.lock.txt`. Installed
+versions matched the lockfile, and `pip check` reported no broken requirements.
+All listed local checks completed successfully.
 
-Fixtures detected removal of either parent or child predicate.
+| Check | IIS | Office | Scheduled task | Total |
+| --- | --- | --- | --- | --- |
+| Synthetic fixture expectations | 6/6 | 7/7 | 19/19 | 32/32 |
+| Positive cases | 3/3 | 4/4 | 4/4 | 11/11 |
+| Negative boundary cases | 2/2 | 2/2 | 14/14 | 18/18 |
+| Incomplete-event cases | 1/1 | 1/1 | 1/1 | 3/3 |
+| Predicate removals detected | 2/2 | 2/2 | 3/3 | 7/7 |
+| Individual list-value removals detected | 3/3 | 6/6 | 6/6 | 15/15 |
+| pySigma parsing | Passed | Passed | Passed | 3/3 |
+| SPL regeneration and exact diff | Passed | Passed | Passed after regeneration | 3/3 |
+| Execution in Splunk | Not tested | Not tested | Not tested | Not tested |
 
-## Office rule
+The standard-library unittest suite passed all 16 tests, including parameterized
+subcases for duplicate YAML keys through the evaluator and mutation CLI loading
+paths; unsupported modifiers and wildcard literals; empty manifests and fixture
+files; missing routing fields; non-integer EventID (including booleans); missing
+detection-field non-matches; case-insensitive endswith, contains, and contains|all;
+expectation-mismatch exit behavior; the original-rule gate; and mutation errors
+not counting as detection.
 
-Rule: rules/office_spawning_powershell.yml
-Manifest: tests/office_manifest.json
-Query: converted/office_spawning_powershell.spl
+Of these 16 tests, four conversion regressions verify duplicate-key rejection before
+converter invocation (with existing and absent destinations), preservation of
+existing output after a converter writes partial data and fails, successful
+conversion with the real locked converter, and conversion of the validated
+snapshot even when the original source changes before converter invocation.
 
-Validated fixture outcomes:
+New synthetic positive fixtures, preserving all prior cases:
 
-- Word spawning Windows PowerShell: match.
-- Excel spawning PowerShell 7: match.
-- Explorer spawning Windows PowerShell: no match.
-- Word spawning Notepad: no match.
-- Missing Image: no match, without a crash.
+- `syn-iis-003`: IIS directly spawning pwsh.exe.
+- `syn-office-003`: POWERPNT.EXE directly spawning powershell.exe.
+- `syn-office-004`: OUTLOOK.EXE directly spawning powershell.exe.
+- `syn-task-003`: literal `%APPDATA%` in the observed command line.
+- `syn-task-004`: literal `%temp%` in the observed command line (case-insensitive).
 
-Fixtures detected removal of either parent or child predicate.
+Each has one JSONL record, a unique identifier, required context and routing
+fields, and `synthetic: true`.
 
-## Scheduled-task rule
+The focused scheduled-task pass adds ten negative boundary fixtures
+(`syn-task-boundary-001` through `syn-task-boundary-010`): missing `/create`,
+missing `/tr`, wrong executable, Tempest, Templates, AppDatabase, bare `C:\Temp`,
+`%APPDATA_BACKUP%`, `%TEMP_BACKUP%`, and hyphen-only switches. All prior cases
+are preserved. The existing mutation checker automatically enumerates the two
+new list values; both removals are detected by their dedicated positive fixtures.
 
-Rule: rules/schtasks_creation_suspicious_path.yml
-Manifest: tests/schtasks_manifest.json
-Query: converted/schtasks_creation_suspicious_path.spl
+Among the rule detection selections, only the scheduled-task path/reference list changes. It adds complete
+`%APPDATA%` and `%TEMP%` tokens while retaining `\AppData\` and `\Temp\`.
+The executable and both slash-switch requirements remain mandatory. Percent signs
+are ordinary literal characters in the supported contains operation, requiring no
+additional evaluator or mutation-code changes for this extension. The configured
+CI checks use the updated manifest and enumerate the expanded list.
 
-Validated fixture outcomes:
+Scheduled-task SPL was regenerated with the locked Sigma CLI, Splunk backend,
+and Sysmon pipeline. Its path/reference OR list now includes `*%APPDATA%*` and
+`*%TEMP%*`; the other predicates are preserved. Independent temporary regeneration
+then matched all three tracked SPL files exactly. IIS and Office SPL are unchanged.
+No manual SPL edits were made.
 
-- Creation command referencing AppData: match.
-- Creation command referencing Temp with uppercase executable and switches: match.
-- Creation command without AppData or Temp: no match.
-- Task-change command missing /create: no match.
-- XML-based creation command missing /tr: no match.
-- Matching command text in a cmd.exe event: no match.
-- Missing Image: no match, without a crash.
+These are literal-string tests only. Environment variables may be expanded before
+process-creation telemetry is recorded; no prevalence estimate or Windows behavior
+is established by the fixtures. No real Windows execution or SIEM validation was
+performed. See [scheduled-task context](scheduled-task-context.md) for Microsoft
+references, complete boundary coverage, and the excluded, unverified hyphen-switch
+extension. A reference anywhere in the command line need not be the `/tr` target.
 
-Fixtures detected removal of each selection entry:
+## Mutation and loading contract
 
-- Image|endswith
-- CommandLine|contains|all
-- CommandLine|contains
+The original rule must pass before mutation testing. Each selection predicate
+is removed from a separate in-memory copy. Each individual element of supported
+selection lists with at least two values is then removed from a separate copy.
+Scalar values and singleton lists have no individual-value mutation: removal
+would leave an invalid empty predicate. OR lists and contains|all lists are both
+tested. Totals are reported separately for predicates and list values.
 
-## Shared tooling
+Only an actual expectation mismatch (evaluator return code 1) counts as detected.
+Exceptions and invalid mutated rules are reported as errors and cannot pass the
+mutation gate. Undetected mutations return 1; mutation errors return 2. Rule files
+are never changed by mutation testing. The evaluator and mutation checker use
+the same strict YAML loader; the pySigma parsing entry point also performs this
+strict duplicate-key check before parsing.
 
-The evaluator reads the actual Sigma YAML selection.
+The supported standalone and CI conversion path is `scripts/convert_rule.py`.
+It copies the input bytes once to a temporary snapshot, validates that snapshot
+with the shared `load_rule`, and invokes `python -m sigma.cli.main` without a shell.
+The backend remains `splunk`, pipeline `sysmon`, and format `default`. Conversion
+uses the same Python environment as the wrapper and unchanged locked dependencies.
+Output is written temporarily on the destination filesystem and replaces the
+requested file only after successful conversion with a nonempty result. Validation
+failure, conversion failure, or missing/empty converter output cannot overwrite
+an existing artifact. Direct `sigma convert` bypasses the strict loading gate
+and is no longer the documented or CI-supported path.
 
-Supported modifiers:
+## Historical v0.1.0 GitHub Actions evidence
 
-- FIELD|endswith: at least one literal suffix.
-- FIELD|contains: at least one literal substring.
-- FIELD|contains|all: every listed literal substring.
+GitHub REST API inspection on 27 October 2026 established these completed, successful
+runs of **Detection Pack Checks**, `.github/workflows/checks.yml`:
 
-All selection entries are joined by AND.
-Comparisons are case-insensitive using Python casefold.
-Unsupported syntax causes an error.
+| Exact commit SHA | Run | Result |
+| --- | --- | --- |
+| `896bdd8b2a0f61e3963edbe084ad17e0e28a6a22` | [40415739345](https://github.com/jamshidkhodjaev/soc-detection-pack/actions/runs/40415739345) | success |
+| `0a64078da75337dd85173a533224d665940e6c01` | [40427245738](https://github.com/jamshidkhodjaev/soc-detection-pack/actions/runs/40427245738) | success |
+| `0a64078da75337dd85173a533224d665940e6c01` | [40427581847](https://github.com/jamshidkhodjaev/soc-detection-pack/actions/runs/40427581847) | success |
 
-The mutation script accepts a manifest path. Without an argument,
-it defaults to tests/iis_manifest.json.
+The previously recorded `898bed8` reference was invalid. Run `40415739345`
+identifies the exact `head_sha` as `896bdd8b2a0f61e3963edbe084ad17e0e28a6a22`,
+the setup-python runtime update.
 
-Each mutation run first requires the original rule to pass.
-It then removes each selection entry from a separate in-memory copy.
-The original YAML files are not modified.
+These API records establish workflow identity, commit, completion, and result
+for the historical commits only. Job logs were not independently audited. The
+maintenance fixture and mutation counts above come from local executions, not
+release notes or inferred log contents. No remote CI result for the maintenance
+changes is asserted by this record.
 
-Execution errors are not counted as detected mutations.
-Dependency versions are recorded in requirements.lock.txt.
+The maintenance CI configuration runs regression tests, pySigma parsing, all fixture manifests, expanded
+mutation checks, and SPL regeneration with exact comparison, using the lockfile.
 
-After extending the evaluator and mutation script, regression checks
-passed for both earlier rules.
+## Recorded historical claims
 
-## Reproduction commands
+Previous documentation reported successful CI at `dde6bc3`. That specific run
+was not independently checked in this maintenance review.
 
-Run from the repository root with the virtual environment active.
+It also recorded a clean-checkout verification on macOS on 27 October 2026 at
+`896bdd8b2a0f61e3963edbe084ad17e0e28a6a22`: a separate clone and fresh environment,
+`pip check`, parsing of all three rules, 17 passing fixture expectations, seven
+detected predicate mutations, regenerated SPL with no diff, and a clean status.
+This is retained as a historical report, not as a newly observed clean-checkout
+run. The dated maintenance validation used the maintenance working tree and an isolated
+environment; it does not establish clean-checkout reproduction of a release
+candidate.
 
-### Parsing
+## Reproduction
+
+From the repository root, activate an isolated environment and install the
+unchanged lockfile. Then run:
 
 ```bash
-python scripts/parse_rule.py rules/iis_worker_spawning_shell.yml
-python scripts/parse_rule.py rules/office_spawning_powershell.yml
-python scripts/parse_rule.py rules/schtasks_creation_suspicious_path.yml
+python -m pip install -r requirements.lock.txt
+python -m pip check
+python -m unittest discover -s tests -p 'test_*.py' -v
 ```
 
-### Fixture evaluation
+Run all manifests and parsers; fail immediately on any unsuccessful command:
 
 ```bash
-python scripts/evaluate.py tests/iis_manifest.json
-python scripts/evaluate.py tests/office_manifest.json
-python scripts/evaluate.py tests/schtasks_manifest.json
+set -euo pipefail
+for manifest in tests/*_manifest.json; do
+  python scripts/evaluate.py "$manifest"
+  python scripts/mutation_check.py "$manifest"
+done
+output_dir=$(mktemp -d)
+for rule in rules/*.yml; do
+  python scripts/parse_rule.py "$rule"
+  name=$(basename "$rule" .yml)
+  python scripts/convert_rule.py -o "$output_dir/$name.spl" "$rule"
+  test -s "$output_dir/$name.spl"
+  diff -u "converted/$name.spl" "$output_dir/$name.spl"
+done
 ```
 
-Expected summaries: 5/5, 5/5, and 7/7 fixture expectations passed.
+## ATT&CK metadata review
 
-### Mutation checks
+Mappings were checked against MITRE's authoritative technique pages:
 
-```bash
-python scripts/mutation_check.py tests/iis_manifest.json
-python scripts/mutation_check.py tests/office_manifest.json
-python scripts/mutation_check.py tests/schtasks_manifest.json
-```
+- IIS: [T1505.003 — Web Shell](https://attack.mitre.org/techniques/T1505/003/),
+  a contextual relationship to possible server-side command execution. Process
+  ancestry alone does not prove a web shell exists. No PowerShell-specific tag
+  is applied across the IIS rule's cmd.exe branch.
+- Office: [T1059.001 — PowerShell](https://attack.mitre.org/techniques/T1059/001/),
+  related execution behavior, which may also be approved automation.
+- Scheduled tasks: [T1053.005 — Scheduled Task](https://attack.mitre.org/techniques/T1053/005/),
+  related execution, persistence, and privilege-escalation context. A launch of
+  schtasks.exe does not prove task registration or execution.
 
-Expected summaries: 2/2, 2/2, and 3/3 mutations detected.
-
-### SPL generation
-
-```bash
-sigma convert -t splunk -p sysmon -f default -o converted/iis_worker_spawning_shell.spl rules/iis_worker_spawning_shell.yml
-sigma convert -t splunk -p sysmon -f default -o converted/office_spawning_powershell.spl rules/office_spawning_powershell.yml
-sigma convert -t splunk -p sysmon -f default -o converted/schtasks_creation_suspicious_path.spl rules/schtasks_creation_suspicious_path.yml
-```
-
-Expected: each conversion completes without errors and produces a nonempty query.
-
-## GitHub Actions status
-
-Workflow: .github/workflows/checks.yml
-Workflow run: https://github.com/jamshidkhodjaev/soc-detection-pack/actions/runs/40415739345
-
-The workflow has been authored and is configured to:
-
-- Install recorded dependencies and check package compatibility.
-- Parse all three rules.
-- Evaluate all three fixture manifests.
-- Run all predicate-removal mutation checks.
-- Regenerate SPL into temporary files.
-- Compare regenerated queries with committed queries using exact text comparison.
-
-Successful GitHub Actions runs were reported for:
-
-- dde6bc3: initial automated validation.
-- 898bed8: validation after upgrading actions/setup-python to v6.
-
-For commit 898bed8, the workflow completed successfully in 16 seconds;
-the validate job completed in 13 seconds.
-
-The workflow checks dependency compatibility, parses all three rules,
-evaluates 17 fixture expectations, detects seven predicate-removal
-mutations, and regenerates and compares all three SPL queries.
-
-The earlier Node.js deprecation warning was absent from the second run.
-An informational ubuntu-latest migration notice remained.
-
-These results demonstrate reproduction in the configured GitHub runner.
-A separate clean-checkout verification on macOS also passed, as recorded below.
+Tags provide investigative context. No rule match proves that a mapped
+adversarial technique occurred.
 
 ## Limitations
 
-- All fixtures are synthetic.
-- The evaluator supports only the documented restricted Sigma subset.
-- Passing fixtures does not establish precision, recall, or operational effectiveness.
-- Mutation checks cover specific predicate-removal mistakes, not every possible defect.
-- Generated SPL has not been executed in Splunk.
-- Missing-field non-matches do not establish that events are safe.
-- The IIS pwsh.exe branch has no dedicated positive fixture.
-- Office PowerPoint and Outlook branches have no dedicated positive fixtures.
-- Scheduled-task matching uses substrings rather than parsed arguments.
-- Directory references may occur outside the actual scheduled-task action.
-- Scheduled-task process creation does not establish successful task registration.
+All fixtures are synthetic. These checks do not establish precision, recall,
+production readiness, or operational effectiveness. The evaluator supports only
+the documented restricted Sigma subset and does not execute SPL. Mutation checks
+cover specific removals, not every defect. Missing-field non-matches do not
+establish safety. Generated queries have not been executed in Splunk.
 
-## Clean-checkout verification
-
-Date: 27 October 2026
-Platform: macOS
-Verified commit: 896bdd8b2a0f61e3963edbe084ad17e0e28a6a22
-
-The repository was cloned from GitHub into a separate temporary directory.
-A new virtual environment was created and dependencies were installed
-from requirements.lock.txt.
-
-Results:
-
-- pip check reported no broken requirements.
-- All three rules passed pySigma parsing.
-- All 17 fixture expectations passed.
-- All seven predicate-removal mutations were detected.
-- All three SPL queries were regenerated successfully.
-- git diff --exit-code -- converted/ reported no differences.
-- git status --short produced no output.
-
-This verifies reproduction of the committed implementation in a fresh
-local environment. Generated SPL remains untested in Splunk.
+Scheduled-task matching remains substring-based: it does not parse arguments,
+expand variables, resolve paths, or establish successful task registration.
+Directory references can appear outside the actual task action.
 
 ## Remaining work
 
-## Remaining work
+For each maintenance release candidate:
 
-- Review the investigation summary in docs/investigation.md.
-- Reconcile README and other documentation with the verified results.
-- Commit and push the investigation and verification documentation.
-- Confirm CI passes for the final release candidate.
-- Prepare the v0.1.0 release.
-
-The full Detection Pack release gate has not yet been met.
+- Review the changes and synthetic investigation through the normal review process.
+- Verify CI for the exact candidate commit and reproduce it from a clean checkout.
+- Prepare release notes preserving the experimental and synthetic-only limitations.
+- Preserve the existing v0.1.0 tag and pre-release.

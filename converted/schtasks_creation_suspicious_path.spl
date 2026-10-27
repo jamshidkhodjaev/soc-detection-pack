@@ -1,1 +1,1 @@
-EventID=1 Image="*\\schtasks.exe" CommandLine="*/create*" CommandLine="*/tr*" CommandLine IN ("*\\AppData\\*", "*\\Temp\\*") | table Image,ParentImage,CommandLine,User
+EventID=1 Image="*\\schtasks.exe" CommandLine="*/create*" CommandLine="*/tr*" CommandLine IN ("*\\AppData\\*", "*\\Temp\\*", "*%APPDATA%*", "*%TEMP%*") | table Image,ParentImage,CommandLine,User

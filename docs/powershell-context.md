@@ -37,6 +37,8 @@ All fixtures are synthetic normalized Sysmon Event ID 1 records.
 | --- | --- | --- |
 | syn-office-001 | Word spawning Windows PowerShell | true |
 | syn-office-002 | Excel spawning PowerShell 7 | true |
+| syn-office-003 | PowerPoint spawning Windows PowerShell | true |
+| syn-office-004 | Outlook spawning Windows PowerShell | true |
 | syn-office-benign-001 | Explorer spawning Windows PowerShell | false |
 | syn-office-benign-002 | Word spawning Notepad | false |
 | syn-office-incomplete-001 | Word parent with Image missing | false |
@@ -48,21 +50,13 @@ The incomplete case omits Image. CommandLine still mentions PowerShell,
 but the rule does not use CommandLine as a detection predicate.
 Missing Image therefore produces a non-match without a crash.
 
-The current fixtures cover Word and Excel as positive parents.
-PowerPoint and Outlook are included in the rule but do not yet have
-dedicated positive fixtures.
+Dedicated positive fixtures cover each listed Office parent.
 
 ## Validation record
 
-Local validation completed on 26 October 2026:
-
-- pySigma parsing passed.
-- All five fixture expectations passed.
-- Removing ParentImage|endswith was detected by fixture failures.
-- Removing Image|endswith was detected by fixture failures.
-- Mutation checks operated on in-memory copies.
-- SPL was generated using the Splunk backend and Sysmon pipeline.
-- The generated SPL has not been executed in Splunk.
+See the authoritative [validation record](validation-status.md) for current
+counts, mutation results, parsing, SPL comparisons, and historical evidence.
+Generated SPL has not been executed in Splunk.
 
 Reproduction commands:
 
@@ -70,8 +64,15 @@ Reproduction commands:
 python scripts/parse_rule.py rules/office_spawning_powershell.yml
 python scripts/evaluate.py tests/office_manifest.json
 python scripts/mutation_check.py tests/office_manifest.json
-sigma convert -t splunk -p sysmon -f default -o converted/office_spawning_powershell.spl rules/office_spawning_powershell.yml
+python scripts/convert_rule.py -o converted/office_spawning_powershell.spl rules/office_spawning_powershell.yml
 ```
 
-Five synthetic cases and two detected mutations do not establish
+Synthetic cases and detected mutations do not establish
 real-world accuracy or complete defect coverage.
+
+## ATT&CK context
+
+[T1059.001 — PowerShell](https://attack.mitre.org/techniques/T1059/001/) covers
+adversarial use of PowerShell for execution. The rule's tag describes a related
+behavior; a match alone does not prove malicious execution or that the mapped
+technique occurred. Approved Office automation may produce the same relationship.

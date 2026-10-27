@@ -31,6 +31,9 @@ jobs:
           python -m pip install -r requirements.lock.txt
           python -m pip check
 
+      - name: Run evaluator, mutation, and conversion regression tests
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
+
       - name: Parse all three rules
         run: |
           set -euo pipefail
@@ -45,7 +48,7 @@ jobs:
           python scripts/evaluate.py tests/office_manifest.json
           python scripts/evaluate.py tests/schtasks_manifest.json
 
-      - name: Run predicate-removal mutation checks
+      - name: Run predicate and value removal mutation checks
         run: |
           set -euo pipefail
           python scripts/mutation_check.py tests/iis_manifest.json
@@ -61,8 +64,7 @@ jobs:
             schtasks_creation_suspicious_path
           do
             output="$RUNNER_TEMP/$rule.spl"
-            sigma convert -t splunk -p sysmon -f default \
-              -o "$output" "rules/$rule.yml"
+            python scripts/convert_rule.py "rules/$rule.yml" -o "$output"
             test -s "$output"
             diff -u "converted/$rule.spl" "$output"
           done

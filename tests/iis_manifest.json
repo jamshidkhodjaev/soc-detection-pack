@@ -30,6 +30,12 @@
       "event_id": "syn-incomplete-001",
       "expected_match": false,
       "reason": "ParentImage is missing, so the required IIS parent relationship cannot be established."
+    },
+    {
+      "fixture": "fixtures/iis_positive_pwsh.jsonl",
+      "event_id": "syn-iis-003",
+      "expected_match": true,
+      "reason": "IIS worker directly creates PowerShell 7."
     }
   ]
 }
