@@ -4,6 +4,11 @@ status: experimental
 description: Detects an IIS worker directly creating cmd.exe, powershell.exe, or pwsh.exe. This is an investigation lead and does not establish exploitation.
 author: Jamshid Khodjaev
 date: 2026-10-25
+references:
+    - https://attack.mitre.org/techniques/T1505/003/
+tags:
+    - attack.persistence
+    - attack.t1505.003
 logsource:
     category: process_creation
     product: windows

@@ -151,11 +151,12 @@ python scripts/evaluate.py tests/iis_manifest.json
 | --- | --- | --- | --- |
 | `syn-iis-001` | `fixtures/iis_positive.jsonl` | IIS worker spawning CMD | `true` |
 | `syn-benign-001` | `fixtures/iis_benign.jsonl` | Explorer spawning CMD | `false` |
+| `syn-iis-003` | `fixtures/iis_positive_pwsh.jsonl` | IIS worker spawning PowerShell 7 | `true` |
 | `syn-iis-002` | `fixtures/iis_positive_powershell.jsonl` | IIS worker spawning PowerShell | `true` |
 | `syn-benign-002` | `fixtures/iis_benign_non_shell.jsonl` | IIS worker spawning Notepad | `false` |
 | `syn-incomplete-001` | `fixtures/iis_incomplete_missing_parent.jsonl` | CMD event missing `ParentImage` | `false` |
 
-All five fixture expectations passed during local validation on 26 October 2026.
+See the [validation record](validation-status.md) for counts and evidence.
 
 The Explorer case challenges the parent predicate. It uses the same shell and
 command as the first positive case.
@@ -168,8 +169,7 @@ The incomplete case confirms that a missing `ParentImage` produces a non-match
 without a crash. A non-match caused by missing telemetry does not establish
 that an event is safe.
 
-The rule includes `pwsh.exe`, but the current fixtures do not include a dedicated
-positive case for that executable.
+The dedicated `syn-iis-003` fixture covers IIS directly spawning `pwsh.exe`.
 
 ## Mutation-check contract
 
@@ -193,18 +193,20 @@ Other affected fixtures may also fail.
 A mutation is detected when fixture evaluation returns an expectation failure.
 Execution errors do not count as detected mutations.
 
-Both predicate-removal mutations were detected during local validation.
+Results are recorded in the [validation record](validation-status.md).
 The original YAML file is not modified.
 
 These checks demonstrate that the fixture set catches two specific ways of
-weakening the rule. They do not establish complete coverage of possible defects.
+weakening the rule. Individual values in multi-value selection lists are also
+removed one at a time; only expectation mismatches count as detected mutations.
+They do not establish complete coverage of possible defects.
 
 ## Splunk conversion contract
 
 Use the Splunk backend and predefined `sysmon` pipeline:
 
 ```bash
-sigma convert -t splunk -p sysmon -f default -o converted/iis_worker_spawning_shell.spl rules/iis_worker_spawning_shell.yml
+python scripts/convert_rule.py -o converted/iis_worker_spawning_shell.spl rules/iis_worker_spawning_shell.yml
 ```
 
 Sysmon field names `Image` and `ParentImage` are retained. The pipeline adds
@@ -250,25 +252,15 @@ operational detection effectiveness.
 
 ## Milestone boundary
 
-The current IIS milestone contains:
+This is an experimental, synthetic-only detection pack. The v0.1.0 pre-release
+exists; this v0.1.1 maintenance update is unpublished. See the authoritative
+[validation record](validation-status.md) for current counts, independently
+verified historical CI, recorded clean-checkout claims, and release steps.
 
-- One experimental Sigma rule.
-- Two positive fixtures.
-- Two benign boundary fixtures.
-- One incomplete-event fixture.
-- Five passing fixture expectations.
-- Two detected predicate-removal mutations.
-- Successful pySigma parsing and SPL conversion.
+## ATT&CK context
 
-All three planned rules now have local parsing, fixture evaluation,
-predicate-removal mutation checks, and SPL generation completed.
-
-Across the project, 17 fixture expectations passed and seven
-predicate-removal mutations were detected.
-
-The GitHub Actions workflow has been authored, but a successful run
-has not yet been verified. The full Detection Pack still requires
-the investigation write-up, clean-checkout reproduction,
-documentation review, and release preparation.
-
-The complete Detection Pack release gate has not yet been met.
+[T1505.003 — Web Shell](https://attack.mitre.org/techniques/T1505/003/) describes
+server-side web shells that can provide command execution. IIS spawning a shell
+is a contextual investigation lead for that technique, not proof that a web shell
+exists or the technique occurred. The rule intentionally has no rule-wide
+PowerShell-specific tag because its child list also covers `cmd.exe`.

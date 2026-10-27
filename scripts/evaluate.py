@@ -1,4 +1,4 @@
-"""Tiny fail-closed evaluator for the documented endswith-only Sigma subset."""
+"""Tiny fail-closed evaluator for the documented endswith/contains/contains|all Sigma subset."""
 import json
 import sys
 from datetime import datetime
@@ -138,7 +138,7 @@ def run(rule, manifest, root):
     return 1 if failed else 0
 
 
-def main():
+def load_rule(path):
     import yaml
     # Reject duplicate YAML keys rather than silently overwriting a predicate.
     class UniqueLoader(yaml.SafeLoader):
@@ -152,10 +152,14 @@ def main():
             result[key] = loader.construct_object(value_node)
         return result
     UniqueLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, unique_mapping)
+    return yaml.load(Path(path).read_text(), Loader=UniqueLoader)
+
+
+def main():
     manifest_path = Path(sys.argv[1]).resolve()
     root = manifest_path.parent.parent
     manifest = json.loads(manifest_path.read_text())
-    rule = yaml.load((root / manifest["rule"]).read_text(), Loader=UniqueLoader)
+    rule = load_rule(root / manifest["rule"])
     return run(rule, manifest, root)
 
 

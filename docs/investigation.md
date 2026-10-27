@@ -121,12 +121,12 @@ The local evaluator reads the actual Sigma YAML.
 | syn-iis-001 | IIS spawning CMD | Match |
 | syn-benign-001 | Explorer spawning CMD | No match |
 | syn-iis-002 | IIS spawning PowerShell | Match |
+| syn-iis-003 | IIS spawning PowerShell 7 | Match |
 | syn-benign-002 | IIS spawning Notepad | No match |
 | syn-incomplete-001 | ParentImage missing | No match without a crash |
 
-All five fixture expectations passed.
-
-Mutation checks detected removal of either the parent or child predicate.
+See the authoritative [validation record](validation-status.md) for fixture
+counts and predicate/value mutation results.
 These checks demonstrate sensitivity to those specific rule changes,
 not complete defect coverage.
 
@@ -151,7 +151,6 @@ SPL generation completed, but the query has not been executed in Splunk.
 - The fixtures do not establish real-world precision or recall.
 - No command output, HTTP request logs, file evidence, or network evidence
   was collected for this exercise.
-- The IIS pwsh.exe branch has no dedicated positive fixture.
 
 ## Final assessment
 

@@ -4,6 +4,11 @@ status: experimental
 description: Detects selected Microsoft Office applications directly creating PowerShell. A match is an investigation lead and does not establish malicious document execution.
 author: Jamshid Khodjaev
 date: 2026-10-26
+references:
+    - https://attack.mitre.org/techniques/T1059/001/
+tags:
+    - attack.execution
+    - attack.t1059.001
 logsource:
     category: process_creation
     product: windows

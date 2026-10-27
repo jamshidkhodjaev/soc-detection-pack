@@ -6,7 +6,7 @@ Flag normalized Windows process-creation events where:
 
 - `Image` ends with `\schtasks.exe`.
 - `CommandLine` contains both `/create` and `/tr`.
-- `CommandLine` contains `\AppData\` or `\Temp\`.
+- `CommandLine` contains `\AppData\`, `\Temp\`, `%APPDATA%`, or `%TEMP%`.
 
 Matching is case-insensitive.
 
@@ -30,8 +30,16 @@ tasks referencing AppData or Temp directories.
 ## Boundaries
 
 This rule evaluates substrings, not parsed command-line arguments.
-The directory reference may occur outside the actual task action.
+A referenced path or variable is not necessarily the `/tr` target; it may occur
+in a task name or another argument. The evaluator does not bind it to `/tr`.
 Switch-like text embedded in other arguments may also match.
+
+The literal directory forms retain both backslash boundaries. `\Temp\` is not
+broadened to `\Temp`: `C:\Tempest\demo.exe`, `C:\Templates\demo.exe`, and bare
+`C:\Temp` do not satisfy it. `C:\AppDatabase\demo.exe` similarly does not satisfy
+`\AppData\`. The percent signs delimit complete variable names, so
+`%TEMP_BACKUP%` and `%APPDATA_BACKUP%` do not satisfy the added literals.
+These boundaries do not turn substring matching into path or argument parsing.
 
 It does not expand environment variables or resolve paths.
 It does not determine directory permissions.
@@ -41,6 +49,24 @@ is outside this rule.
 
 Process creation shows a command being launched, not its outcome.
 Confirm task registration and inspect the task definition during investigation.
+
+## Literal environment variables and switch evidence
+
+The added tokens match literal characters in the observed `CommandLine`.
+Environment variables may already be expanded before process-creation telemetry
+is recorded, depending on the launcher and invocation. For example, Microsoft's
+[cmd documentation](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/cmd)
+describes substitution of percent-delimited environment variables. The evaluator
+does not simulate that substitution. These synthetic fixtures validate
+literal-string matching, not how often that form occurs in real telemetry,
+whether schtasks accepts the supplied task action, or successful task creation.
+The chosen synthetic parent is context, not evidence of a captured cmd launch.
+
+Microsoft's [schtasks create syntax](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/schtasks-create)
+documents `/create` and `/tr`. Support for `-create`/`-tr` is an **unverified
+extension**, left out of this rule. No Windows execution was performed to establish
+acceptance or rejection. The hyphen-only negative fixture tests the rule's scope,
+not Windows command validity.
 
 ## Fixture coverage
 
@@ -55,6 +81,18 @@ All fixtures are synthetic normalized Sysmon Event ID 1 records.
 | syn-task-benign-003 | XML-based creation command missing /tr | false |
 | syn-task-benign-004 | Matching command text in a cmd.exe event | false |
 | syn-task-incomplete-001 | Image missing | false |
+| syn-task-003 | Literal %APPDATA% reference; validates observed string matching only. | true |
+| syn-task-004 | Literal %TEMP% reference in lowercase exercises case-insensitive matching. | true |
+| syn-task-boundary-001 | Literal AppData reference cannot bypass the /create requirement. | false |
+| syn-task-boundary-002 | Literal Temp reference cannot bypass the /tr requirement. | false |
+| syn-task-boundary-003 | Matching command text cannot bypass the schtasks.exe Image requirement. | false |
+| syn-task-boundary-004 | Tempest is not a Temp path component. | false |
+| syn-task-boundary-005 | Templates is not a Temp path component. | false |
+| syn-task-boundary-006 | AppDatabase is not an AppData path component. | false |
+| syn-task-boundary-007 | A bare directory lacks the trailing path separator required by the literal path predicate. | false |
+| syn-task-boundary-008 | A different variable name must not match the complete %APPDATA% token. | false |
+| syn-task-boundary-009 | A different variable name must not match the complete %TEMP% token. | false |
+| syn-task-boundary-010 | Hyphen-switch extension is unverified and intentionally unsupported; this is not Windows syntax validation. | false |
 
 Negative cases challenge the executable, required switches, and directory
 conditions separately. A non-match does not establish that activity is safe.
@@ -82,21 +120,8 @@ inspect directory permissions, or establish command success.
 
 ## Validation record
 
-Local validation completed on 26 October 2026:
-
-- pySigma parsing passed.
-- All seven fixture expectations passed.
-- Three predicate-removal mutations were detected:
-  - Image|endswith
-  - CommandLine|contains|all
-  - CommandLine|contains
-- Mutations used in-memory copies; the original YAML was unchanged.
-- SPL was generated using the Splunk backend and Sysmon pipeline.
-- Generated SPL has not been executed in Splunk.
-
-After the shared evaluator and mutation script were updated, both the IIS
-and Office rules still passed their five fixture expectations and detected
-their two predicate-removal mutations.
+See the authoritative [validation record](validation-status.md) for counts,
+mutation results, parsing, SPL comparisons, and historical CI evidence.
 
 ## Reproduction commands
 
@@ -106,29 +131,26 @@ Run from the repository root with the virtual environment active.
 python scripts/parse_rule.py rules/schtasks_creation_suspicious_path.yml
 python scripts/evaluate.py tests/schtasks_manifest.json
 python scripts/mutation_check.py tests/schtasks_manifest.json
-sigma convert -t splunk -p sysmon -f default -o converted/schtasks_creation_suspicious_path.spl rules/schtasks_creation_suspicious_path.yml
+python scripts/convert_rule.py -o converted/schtasks_creation_suspicious_path.spl rules/schtasks_creation_suspicious_path.yml
 ```
 
-Expected fixture summary: 7/7 fixture expectations passed.
-
-Expected mutation summary: 3/3 mutations detected.
-
-## Automation status
-
-A GitHub Actions workflow has been authored at:
-
-.github/workflows/checks.yml
-
-It is configured to install recorded dependencies, parse all three rules,
-evaluate their fixtures, run mutation checks, and regenerate and compare SPL.
-
-A successful GitHub Actions run has not yet been verified.
+CI runs regression tests, fixture evaluation, predicate/value mutation checks,
+parsing, and SPL regeneration/diffs. This maintenance update is unpublished.
 
 ## Limitations
 
-Seven synthetic cases and three detected mutations do not establish
+Synthetic cases and detected mutations do not establish
 real-world accuracy or complete defect coverage.
 
 A process-creation event records the command being launched.
 Successful task registration requires additional evidence, such as
 task-registration events or the resulting task definition.
+
+## ATT&CK context
+
+[T1053.005 — Scheduled Task](https://attack.mitre.org/techniques/T1053/005/)
+covers abuse of Windows Task Scheduler for execution, persistence, or privilege
+escalation. The tags describe investigative context, not a conclusion that these
+techniques occurred. A process match does not confirm registration or execution
+of a task. This focused pass adds literal variable references only; executable,
+slash-switch, and directory-boundary requirements are preserved.

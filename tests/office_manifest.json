@@ -30,6 +30,18 @@
       "event_id": "syn-office-incomplete-001",
       "expected_match": false,
       "reason": "Image is missing, so the required PowerShell child executable cannot be established from the detection fields."
+    },
+    {
+      "fixture": "fixtures/office_positive_powerpoint.jsonl",
+      "event_id": "syn-office-003",
+      "expected_match": true,
+      "reason": "PowerPoint directly creates Windows PowerShell."
+    },
+    {
+      "fixture": "fixtures/office_positive_outlook.jsonl",
+      "event_id": "syn-office-004",
+      "expected_match": true,
+      "reason": "Outlook directly creates Windows PowerShell."
     }
   ]
 }

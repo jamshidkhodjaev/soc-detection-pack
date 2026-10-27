@@ -42,6 +42,78 @@
       "event_id": "syn-task-incomplete-001",
       "expected_match": false,
       "reason": "Image is missing, so the required schtasks.exe executable cannot be established."
+    },
+    {
+      "fixture": "fixtures/schtasks_positive_literal_appdata.jsonl",
+      "event_id": "syn-task-003",
+      "expected_match": true,
+      "reason": "Literal %APPDATA% reference; validates observed string matching only."
+    },
+    {
+      "fixture": "fixtures/schtasks_positive_literal_temp.jsonl",
+      "event_id": "syn-task-004",
+      "expected_match": true,
+      "reason": "Literal %TEMP% reference in lowercase exercises case-insensitive matching."
+    },
+    {
+      "fixture": "fixtures/schtasks_negative_literal_missing_create.jsonl",
+      "event_id": "syn-task-boundary-001",
+      "expected_match": false,
+      "reason": "Literal AppData reference cannot bypass the /create requirement."
+    },
+    {
+      "fixture": "fixtures/schtasks_negative_literal_missing_tr.jsonl",
+      "event_id": "syn-task-boundary-002",
+      "expected_match": false,
+      "reason": "Literal Temp reference cannot bypass the /tr requirement."
+    },
+    {
+      "fixture": "fixtures/schtasks_negative_literal_other_image.jsonl",
+      "event_id": "syn-task-boundary-003",
+      "expected_match": false,
+      "reason": "Matching command text cannot bypass the schtasks.exe Image requirement."
+    },
+    {
+      "fixture": "fixtures/schtasks_negative_tempest.jsonl",
+      "event_id": "syn-task-boundary-004",
+      "expected_match": false,
+      "reason": "Tempest is not a Temp path component."
+    },
+    {
+      "fixture": "fixtures/schtasks_negative_templates.jsonl",
+      "event_id": "syn-task-boundary-005",
+      "expected_match": false,
+      "reason": "Templates is not a Temp path component."
+    },
+    {
+      "fixture": "fixtures/schtasks_negative_appdatabase.jsonl",
+      "event_id": "syn-task-boundary-006",
+      "expected_match": false,
+      "reason": "AppDatabase is not an AppData path component."
+    },
+    {
+      "fixture": "fixtures/schtasks_negative_bare_temp.jsonl",
+      "event_id": "syn-task-boundary-007",
+      "expected_match": false,
+      "reason": "A bare directory lacks the trailing path separator required by the literal path predicate."
+    },
+    {
+      "fixture": "fixtures/schtasks_negative_appdata_backup_variable.jsonl",
+      "event_id": "syn-task-boundary-008",
+      "expected_match": false,
+      "reason": "A different variable name must not match the complete %APPDATA% token."
+    },
+    {
+      "fixture": "fixtures/schtasks_negative_temp_backup_variable.jsonl",
+      "event_id": "syn-task-boundary-009",
+      "expected_match": false,
+      "reason": "A different variable name must not match the complete %TEMP% token."
+    },
+    {
+      "fixture": "fixtures/schtasks_negative_hyphen_switches.jsonl",
+      "event_id": "syn-task-boundary-010",
+      "expected_match": false,
+      "reason": "Hyphen-switch extension is unverified and intentionally unsupported; this is not Windows syntax validation."
     }
   ]
 }
